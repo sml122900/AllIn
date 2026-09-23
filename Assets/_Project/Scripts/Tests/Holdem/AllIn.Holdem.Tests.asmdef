@@ -1,0 +1,18 @@
+{
+    "name": "AllIn.Holdem.Tests",
+    "rootNamespace": "AllIn.Holdem.Tests",
+    "references": [
+        "AllIn.Core", "AllIn.Holdem",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": ["nunit.framework.dll"],
+    "autoReferenced": false,
+    "defineConstraints": ["UNITY_INCLUDE_TESTS"],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,14 @@
+{
+    "name": "AllIn.Holdem",
+    "rootNamespace": "AllIn.Holdem",
+    "references": ["AllIn.Core"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Headless harness: compiles the engine-free assemblies (AllIn.Core, AllIn.Holdem) and their NUnit tests
+    straight from Assets/ so the same files run here and in the Unity Test Runner.
+      dotnet run (project tools/dotnet-harness) test
+      dotnet run (project tools/dotnet-harness) sim
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <!-- Unity 6 compiles C# 9; stay there so code that builds here also builds in the editor. -->
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>AllIn.Harness</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ScriptsDir>$(MSBuildThisFileDirectory)..\..\Assets\_Project\Scripts\</ScriptsDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(ScriptsDir)Core\**\*.cs" LinkBase="Core" />
+    <Compile Include="$(ScriptsDir)Holdem\**\*.cs" LinkBase="Holdem" />
+    <Compile Include="$(ScriptsDir)Tests\Core\**\*.cs" LinkBase="Tests\Core" />
+    <Compile Include="$(ScriptsDir)Tests\Holdem\**\*.cs" LinkBase="Tests\Holdem" />
+    <Compile Include="*.cs;Sim\**\*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="NUnit" Version="3.14.0" />
+    <PackageReference Include="NUnitLite" Version="3.14.0" />
+  </ItemGroup>
+</Project>

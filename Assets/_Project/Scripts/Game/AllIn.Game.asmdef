@@ -1,0 +1,21 @@
+{
+    "name": "AllIn.Game",
+    "rootNamespace": "AllIn.Game",
+    "references": [
+        "AllIn.Core",
+        "AllIn.Holdem",
+        "Unity.TextMeshPro",
+        "Unity.InputSystem",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
