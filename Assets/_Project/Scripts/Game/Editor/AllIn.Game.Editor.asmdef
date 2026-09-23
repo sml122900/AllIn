@@ -1,0 +1,14 @@
+{
+    "name": "AllIn.Game.Editor",
+    "rootNamespace": "AllIn.Game.Editor",
+    "references": ["AllIn.Game"],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -10,7 +10,7 @@ namespace AllIn.Core
         public static long Fee(double notional) => (long)Math.Round(notional * Rules.FeeRate);
 
         /// <summary>Builds the position for committing C won at this price. Entry fee comes out of C.</summary>
-        public static Position Open(Direction dir, int leverage, long committed, double price, int absSlot)
+        public static Position Open(Direction dir, int leverage, long committed, long price, int absSlot)
         {
             double notional = (double)committed * leverage;
             long fee = Fee(notional);
@@ -21,7 +21,6 @@ namespace AllIn.Core
                 committed = committed,
                 margin = committed - fee,
                 entryPrice = price,
-                quantity = notional / price,
                 openedAtSlot = absSlot,
             };
         }
@@ -30,23 +29,26 @@ namespace AllIn.Core
 
         public static double Notional(Position p) => (double)p.committed * p.leverage;
 
-        public static double UnrealizedPnl(Position p, double price) => p.quantity * (price - p.entryPrice) * (int)p.direction;
+        /// <summary>Coins held: notional / entry price. Derived, never stored.</summary>
+        public static double Quantity(Position p) => Notional(p) / p.entryPrice;
+
+        public static double UnrealizedPnl(Position p, long price) => Quantity(p) * (price - p.entryPrice) * (int)p.direction;
 
         public static double LiquidationLoss(Position p) => p.margin * Rules.LiquidationRatio;
 
         /// <summary>Loss reaches margin × 0.9 → liquidated.</summary>
-        public static bool IsLiquidated(Position p, double price) => -UnrealizedPnl(p, price) >= LiquidationLoss(p);
+        public static bool IsLiquidated(Position p, long price) => -UnrealizedPnl(p, price) >= LiquidationLoss(p);
 
         public static double LiquidationPrice(Position p) =>
-            p.entryPrice - (int)p.direction * LiquidationLoss(p) / p.quantity;
+            p.entryPrice - (int)p.direction * LiquidationLoss(p) / Quantity(p);
 
         /// <summary>Margin + unrealized, floored at 0 (what the position is worth before exit fee).</summary>
-        public static long Value(Position p, double price) => Math.Max(0L, p.margin + (long)Math.Round(UnrealizedPnl(p, price)));
+        public static long Value(Position p, long price) => Math.Max(0L, p.margin + (long)Math.Round(UnrealizedPnl(p, price)));
 
-        public static long ExitFee(Position p, double price) => Fee(p.quantity * price);
+        public static long ExitFee(Position p, long price) => Fee(Quantity(p) * price);
 
         /// <summary>Cash returned on a manual close: margin + PnL − exit fee, never negative.</summary>
-        public static long CloseProceeds(Position p, double price) =>
+        public static long CloseProceeds(Position p, long price) =>
             Math.Max(0L, p.margin + (long)Math.Round(UnrealizedPnl(p, price)) - ExitFee(p, price));
 
         /// <summary>Mental change for a manual close relative to total assets after closing.</summary>
@@ -59,7 +61,7 @@ namespace AllIn.Core
         }
 
         /// <summary>E4 calculator: daily return = realized return / held days (min 1); projection = total × (1+r)^daysLeft.</summary>
-        public static double HopeDailyReturn(LastWin w) => w.returnOnCommitted / Math.Max(1.0, w.heldTicks / (double)Rules.SlotsPerDay);
+        public static double HopeDailyReturn(LastWin w) => w.realized / (double)Math.Max(1L, w.committed) / Math.Max(1.0, w.heldTicks / (double)Rules.SlotsPerDay);
 
         public static double HopeProjection(long total, LastWin w, int daysLeft) => total * Math.Pow(1 + HopeDailyReturn(w), daysLeft);
 

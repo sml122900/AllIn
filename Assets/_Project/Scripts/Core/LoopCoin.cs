@@ -1,3 +1,5 @@
+using System;
+
 namespace AllIn.Core
 {
     public sealed partial class Loop
@@ -24,7 +26,7 @@ namespace AllIn.Core
             AddMental(-Rules.LiquidationMental);
             // The tick that just happened moved us into Data.slot; night-side ticks wake you at 3am.
             string id = Calendar.IsNightSide(Data.slot) ? EventIds.LiquidationNight : EventIds.LiquidationDay;
-            Emit(new GameEvent { id = id, amount = p.committed, value = Data.price, count = p.leverage });
+            Emit(new GameEvent { id = id, amount = p.committed, amount2 = Data.price, count = p.leverage });
             Log(Texts.E1Title + " " + Fmt.Won(-p.committed));
             Data.e3AtSlot = AbsSlot + 1;
         }
@@ -42,6 +44,11 @@ namespace AllIn.Core
             return EmitHope();
         }
 
+        /// <summary>E4 carries the daily rate as parts-per-million (integral, so it saves exactly).</summary>
+        public const double HopeRateScale = 1_000_000;
+
+        static long ClampToLong(double v) => double.IsNaN(v) ? 0 : v >= long.MaxValue ? long.MaxValue : v <= long.MinValue ? long.MinValue : (long)Math.Round(v);
+
         GameEvent EmitHope()
         {
             Data.hopeShownDay = Data.day;
@@ -51,8 +58,8 @@ namespace AllIn.Core
             {
                 id = EventIds.HopeCircuit,
                 amount = total,
-                value = CoinRules.HopeDailyReturn(Data.lastWin),
-                value2 = CoinRules.HopeProjection(total, Data.lastWin, DaysLeft),
+                amount2 = ClampToLong(CoinRules.HopeProjection(total, Data.lastWin, DaysLeft)),
+                amount3 = (long)Math.Round(CoinRules.HopeDailyReturn(Data.lastWin) * HopeRateScale),
                 count = DaysLeft,
             };
             Emit(e);

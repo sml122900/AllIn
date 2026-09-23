@@ -23,8 +23,8 @@ namespace AllIn.Core
         public bool finished;
 
         // coin
-        public double price;
-        public List<double> priceHistory = new List<double>();
+        public long price;                                  // whole won
+        public List<long> priceHistory = new List<long>();
         public bool hasPosition;
         public Position position = new Position();
         public int lastLeverage = Rules.DefaultLeverage;
@@ -58,15 +58,15 @@ namespace AllIn.Core
         public int leverage;
         public long committed;      // C: cash taken when opening
         public long margin;         // M = C - entry fee
-        public double entryPrice;
-        public double quantity;     // notional / entryPrice
+        public long entryPrice;     // quantity is derived: CoinRules.Quantity
         public int openedAtSlot;    // absolute slot
     }
 
     [Serializable]
     public class LastWin
     {
-        public double returnOnCommitted;
+        public long realized;
+        public long committed;
         public int heldTicks;
     }
 
@@ -107,8 +107,7 @@ namespace AllIn.Core
         public string id;            // EventIds.*
         public long amount;
         public long amount2;
-        public double value;
-        public double value2;
+        public long amount3;
         public int[] ints = new int[0];
         public int[] ints2 = new int[0];
         public int count;

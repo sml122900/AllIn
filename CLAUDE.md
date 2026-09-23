@@ -32,6 +32,13 @@ dotnet run --project tools/dotnet-harness -- test --where "class =~ Lotto"
 dotnet run --project tools/dotnet-harness -- sim           # loop + holdem sims -> md/SIM_REPORT.md, md/SIM_HOLDEM.md
 dotnet run --project tools/dotnet-harness -- sim loop      # or: sim holdem
 ```
+Unity (batchmode, editor closed; path `C:/Program Files/Unity/Hub/Editor/6000.3.21f1/Editor/Unity.exe`):
+```
+Unity.exe -batchmode -projectPath . -runTests -testPlatform EditMode -testResults <xml> -logFile <log>   # compile + all tests incl. Game save round-trip
+Unity.exe -batchmode -quit -projectPath . -executeMethod AllIn.Game.Editor.ProjectSetup.Run            # scenes + build settings (idempotent)
+Unity.exe -batchmode -quit -projectPath . -executeMethod AllIn.Game.Editor.ProjectSetup.BuildWindows   # Builds/Win64/AllIn.exe
+Builds/Win64/AllIn.exe -screen-width 1280 -screen-height 720 -screen-fullscreen 0 -allinShots <dir>      # dev capture: scripted 30 days, screenshots every screen/event, uses <dir> as save dir
+```
 Harness compiles `Core/`, `Holdem/`, `Tests/Core`, `Tests/Holdem` via `<Compile Include>` at C# 9 (Unity's version). Unity compile check: unity-mcp once per session (0 errors); if MCP is unavailable, write "compile unverified" in STATUS.
 
 ## Conventions
@@ -39,7 +46,7 @@ Harness compiles `Core/`, `Holdem/`, `Tests/Core`, `Tests/Holdem` via `<Compile 
 - Money: `long` KRW, displayed with commas + 원 (`Fmt.Won`).
 - Actions implement `Core/Actions/IAction` (slot actions end the slot; instant actions don't). New income/gamble sources plug in the same way.
 - UI: UGUI + TextMeshPro built **in code at runtime** (no hand-edited prefabs/scenes). EventSystem uses `InputSystemUIInputModule`. Korean font: Galmuri TTF in `Assets/_Project/Fonts/Resources/`, turned into a dynamic TMP font at boot. Room backgrounds = world sprites under URP `PixelPerfectCamera` (320×180). Gauges/buttons/popups = Screen Space-Overlay canvas.
-- Saves: `SaveData` lives in Core; JSON IO (`Application.persistentDataPath/allin-save-v1.json`, temp file then replace) lives in Game. Autosave only.
+- Saves: every saved number is integral (price in whole won, quantity derived) because JsonUtility does not round-trip doubles exactly. `SaveData` lives in Core; JSON IO (`Application.persistentDataPath/allin-save-v1.json`, temp file then replace) lives in Game. Autosave only.
 - Test names state intent: `Liquidation_FiresAtTheTickLossReachesMargin_NotBefore`.
 - Commits: Windows — write the message to a file and `git commit -F .git/COMMIT_MSG` (never inline). A stage is done when harness test + sim pass, Unity compiles with 0 errors, and STATUS is updated.
 

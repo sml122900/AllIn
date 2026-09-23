@@ -71,7 +71,7 @@ namespace AllIn.Core.Actions
             if (realized > 0)
             {
                 d.hasLastWin = true;
-                d.lastWin = new LastWin { returnOnCommitted = realized / (double)p.committed, heldTicks = loop.AbsSlot - p.openedAtSlot };
+                d.lastWin = new LastWin { realized = realized, committed = p.committed, heldTicks = loop.AbsSlot - p.openedAtSlot };
                 loop.TryHopeAfterWin();
             }
             return ActionResult.Done(Texts.CoinClose + " " + Fmt.SignedWon(realized));

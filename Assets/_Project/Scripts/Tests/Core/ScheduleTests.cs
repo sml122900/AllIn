@@ -138,7 +138,7 @@ namespace AllIn.Core.Tests
         internal static SaveData Clone(SaveData s)
         {
             var c = (SaveData)typeof(object).GetMethod("MemberwiseClone", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(s, null);
-            c.priceHistory = new System.Collections.Generic.List<double>(s.priceHistory);
+            c.priceHistory = new System.Collections.Generic.List<long>(s.priceHistory);
             c.pendingEvents = new System.Collections.Generic.List<GameEvent>(s.pendingEvents);
             c.log = new System.Collections.Generic.List<string>(s.log);
             c.tickets = new System.Collections.Generic.List<LottoTicket>(s.tickets);

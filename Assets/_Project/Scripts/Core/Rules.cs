@@ -36,7 +36,7 @@ namespace AllIn.Core
         public const int FiredMental = 10;
 
         // B5 coin futures
-        public const double CoinStartPrice = 100_000_000;
+        public const long CoinStartPrice = 100_000_000; // whole won: every saved number is integral so JSON saves round-trip exactly
         public const double CoinTickScale = 0.010;
         public const double CoinTickCap = 0.25;
         public static readonly int[] Leverages = { 5, 10, 25, 50, 100 };
