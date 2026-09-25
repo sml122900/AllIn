@@ -35,6 +35,12 @@ _Single session-to-session context doc. Newest state at top._
 - Studying clearly helps (3× the Pub win rate), but ChartBot is still **below the 1/9 baseline** in the Pub and Satellite. Caveat: the measured player never re-enters while the eight opponents re-enter 50% of the time, so it faces more chips than an average seat.
 - Pub ROI is negative even for ChartBot mostly because 2nd/3rd pay points valued at 0.
 
+## Findings
+- Study effect is real: ChartBot vs Study-0 win rate 3x (Pub), 5x (Satellite), both significant.
+- Chart play reaches a fair seat, not an edge (Nash push/fold is unexploitable, not exploitative). Human edge must come from exploiting opponents.
+- Ladder economics as designed: Pub ROI ≈ −68% (points worth 0 → pub is a money sink), Satellite ≈ breakeven, Main = fair-seat lottery (0.6% win). Keep.
+- Caveats: opponents re-enter 50% while measured player never does; Study-0 imitation is an arbitrary proxy for a novice human.
+
 ## Hold'em UI notes (C6–C7)
 - Holdem.unity is empty; `HoldemApp` builds a boot menu (Kind · study level 0–4 · seed ±/random) and a 9-seat table in code, then replays the engine's event stream with delays (actions 0.5 s, flop/turn 0.55 s, river 0.9 s, all-in river 1.5 s + board shake, bad beat 0.5 s blackout + line, bubble / level / table-merge banners, re-entry popup on bust).
 - HUD: 0 = own chips, others as chip piles (≥1.3× avg 많음 / ≥0.7× 보통 / else 적음), plain dealer button; 1 = all stacks with bb; 2 = position labels + highlighted button; 3 = pot odds on the call button; 4 = push/fold panel (range for this bb/position, or the call range facing a shove, and whether my hand is in).
@@ -46,6 +52,9 @@ _Single session-to-session context doc. Newest state at top._
 - Hold'em skill signal in the Pub **passes on paper only**: Pro 11.9% vs Station 11.5% is inside statistical noise. (Maniac winning most is not considered a defect.)
 - Post-liquidation mental spiral: −40 on liquidation can hit 0 within ~3 days with no recovery path (can't get up → job mistakes → fired).
 - Lotto miss −1 per purchase: 2 purchases/day alone erodes mental enough to cost the job (sim B works 23/30 shifts).
+
+## Open design
+- Candidate lever (undecided, after playtest): opponent-tendency notes unlocked by study/observation, so human exploitation (not HUD numbers) becomes the edge beyond fair seat.
 
 ## Things to look at during human play
 - Mental falls fast: the dev-capture bot (50x every other night) hit mental 0 by day 3 → "can't get up" and 30% job mistakes most of the run. Real players may spiral the same way — intended or too harsh?
