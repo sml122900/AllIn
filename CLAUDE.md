@@ -49,7 +49,10 @@ Harness compiles `Core/`, `Holdem/`, `Tests/Core`, `Tests/Holdem` via `<Compile 
 - UI: UGUI + TextMeshPro built **in code at runtime** (no hand-edited prefabs/scenes). EventSystem uses `InputSystemUIInputModule`. Korean font: Galmuri TTF in `Assets/_Project/Fonts/Resources/`, turned into a dynamic TMP font at boot. Room backgrounds = world sprites under the **URP built-in** `UnityEngine.Rendering.Universal.PixelPerfectCamera` (320×180) — do not add the legacy `com.unity.2d.pixel-perfect` package. Gauges/buttons/popups = Screen Space-Overlay canvas.
 - Saves: every saved number is integral (price in whole won, quantity derived) because JsonUtility does not round-trip doubles exactly. `SaveData` lives in Core; JSON IO (`Application.persistentDataPath/allin-save-v1.json`, temp file then replace) lives in Game. Autosave only.
 - Test names state intent: `Liquidation_FiresAtTheTickLossReachesMargin_NotBefore`.
-- Commits: Windows — write the message to a file and `git commit -F .git/COMMIT_MSG` (never inline). A stage is done when harness test + sim pass, Unity compiles with 0 errors, and STATUS is updated.
+
+## Commit rules
+- Windows: write the message to a file and `git commit -F .git/COMMIT_MSG` (never inline). A stage is done when harness test + sim pass, Unity compiles with 0 errors, and STATUS is updated.
+- Before every commit, if ProjectSettings/UnityConnectSettings.asset is modified, run git checkout -- on it. Unity Services must stay off; the editor rewrites this file during builds.
 
 ## Don't
 - Add debt/loans, stocks, loading/construction jobs, or hook hold'em into the loop (extension-point comments only).
