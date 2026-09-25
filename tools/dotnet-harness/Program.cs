@@ -17,6 +17,8 @@ namespace AllIn.Harness
                     return new AutoRun(typeof(Program).Assembly).Execute(rest.Concat(new[] { "--noresult" }).ToArray());
                 case "sim":
                     return Sim.SimRunner.Run(rest, RepoRoot());
+                case "gen169":
+                    return Gen169.Run(rest);
                 default:
                     Console.Error.WriteLine("usage: dotnet run --project tools/dotnet-harness -- (test [nunitlite args] | sim [loop|holdem] [--runs N])");
                     return 2;

@@ -135,7 +135,7 @@ namespace AllIn.Holdem.Tests
             for (ulong seed = 1; seed <= 30; seed++)
             {
                 var t = new Tournament(Pub(), new Xoshiro128(seed), wild, wild);
-                t.HeroBotReenters = false;
+                t.HeroBotReentry = _ => false;
                 t.RunToEnd();
                 Assert.IsNotNull(t.Winner);
                 var finishes = t.AllEntrants.Where(e => !e.Alive || e == t.Winner).Select(e => e.Finish).OrderBy(f => f).ToArray();

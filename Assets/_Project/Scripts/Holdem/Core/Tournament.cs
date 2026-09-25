@@ -261,17 +261,15 @@ namespace AllIn.Holdem
                     return;
                 }
                 _busts.Dequeue();
-                bool again = mayReenter && (e.IsHero ? e.Decider != null && _heroBotReenters : _rng.Chance(HoldemRules.AiReentryChance));
+                bool again = mayReenter && (e.IsHero ? HeroBotReentry(Config.Reentry.Cost) : _rng.Chance(HoldemRules.AiReentryChance));
                 if (again) Reenter(e);
                 else Eliminate(e);
             }
             AfterBusts();
         }
 
-        bool _heroBotReenters = true;
-
-        /// <summary>For sims: whether the hero bot re-enters when allowed.</summary>
-        public bool HeroBotReenters { get => _heroBotReenters; set => _heroBotReenters = value; }
+        /// <summary>When a bot plays the hero seat: whether to re-enter (given the cost). Default: always.</summary>
+        public Func<long, bool> HeroBotReentry { get; set; } = _ => true;
 
         void Reenter(Entrant e)
         {
