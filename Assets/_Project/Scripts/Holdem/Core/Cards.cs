@@ -54,5 +54,26 @@ namespace AllIn.Holdem
         public int Deal() => _cards[_next++];
 
         public int Remaining => 52 - _next;
+
+        // ---- test rigging (internal: visible to AllIn.Holdem.Tests only) ----
+
+        int IndexOf(int card) => Array.IndexOf(_cards, card);
+
+        internal void Swap(int a, int b)
+        {
+            int i = IndexOf(a), j = IndexOf(b);
+            (_cards[i], _cards[j]) = (_cards[j], _cards[i]);
+        }
+
+        /// <summary>Makes these the next cards dealt.</summary>
+        internal void PlaceNext(int[] cards)
+        {
+            for (int k = 0; k < cards.Length; k++)
+            {
+                int j = IndexOf(cards[k]);
+                if (j < _next) throw new InvalidOperationException(Card.ToText(cards[k]) + " already dealt");
+                (_cards[_next + k], _cards[j]) = (_cards[j], _cards[_next + k]);
+            }
+        }
     }
 }
