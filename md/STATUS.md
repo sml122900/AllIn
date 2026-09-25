@@ -3,14 +3,13 @@
 _Single session-to-session context doc. Newest state at top._
 
 ## Current
-- Branch: `feat/loop-proto`. Not pushed (no remote configured).
+- Branch: `feat/loop-proto`. Remote `origin` = https://github.com/sml122900/AllIn (private). `main` and `feat/loop-proto` pushed 2026-09-25.
 - Stage: **Part B Stages 1–7 done** (slot model + lotto tax revised 2026-09-25). Part B Stage 8 (human play) pending — observations come from the user separately.
 - Unity compile: **verified** 2026-09-25 via unity-mcp (editor was open): 0 errors, **140/140 EditMode tests** (71 Core + 67 Holdem + 2 Game). Win64 build succeeds; loop and hold'em dev captures run with 0 exceptions.
 
 ## Next
 - **Part B Stage 8 (user):** open `Assets/_Project/Scenes/Loop.unity`, press Play (or run `Builds/Win64/AllIn.exe`), play one 30-day run. Record observations below — no number changes (tuning is the user's call). Target 10–15 min.
 - Part C (hold'em): **C1–C7 done; stopped at C7 human play.** To play: open `Assets/_Project/Scenes/Holdem.unity` → Play (or run the build and load the Holdem scene — the build starts in Loop; see note), pick Kind / study level / seed → 시작. Target Pub 8–12 min. Observations go below; numbers stay as they are.
-- Remote: none configured and `gh` is not installed → nothing pushed. Needs a repository URL from the user.
 
 ## Decisions (confirmed by the user 2026-09-25)
 - **1 action = 1 slot.** Job, rest/sleep, coin open, coin close each consume the slot. Free: looking at the coin screen, lotto purchase (not at night), popups. Opening/closing at night = all-nighter (no recovery, mental −5). The "can't open and close in the same slot" rule is a consequence, not a separate rule. E4 still fires on entering the coin screen (viewing is free). Sim D opens at night and closes in the first slot it can act in.
