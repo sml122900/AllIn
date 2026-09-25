@@ -52,12 +52,13 @@ namespace AllIn.Core
 
         public static int Rank(int[] game, int[] drawn) => Rank(game, 0, drawn);
 
-        /// <summary>Whole-prize bracket rate: ≤ 2M tax-free, ≤ 300M 22%, above 33%.</summary>
+        /// <summary>≤ 2M tax-free; otherwise 22% up to 300M, plus 33% on the part above 300M (progressive).</summary>
         public static long Tax(long gross)
         {
             if (gross <= Rules.LottoTaxFreeUpTo) return 0;
-            double rate = gross <= Rules.LottoMidTaxUpTo ? Rules.LottoMidTax : Rules.LottoHighTax;
-            return (long)Math.Round(gross * rate);
+            double tax = Math.Min(gross, Rules.LottoMidTaxUpTo) * Rules.LottoMidTax;
+            if (gross > Rules.LottoMidTaxUpTo) tax += (gross - Rules.LottoMidTaxUpTo) * Rules.LottoHighTax;
+            return (long)Math.Round(tax);
         }
 
         public static long NetPrize(int rank) => rank <= 0 ? 0 : Rules.LottoPrize[rank] - Tax(Rules.LottoPrize[rank]);

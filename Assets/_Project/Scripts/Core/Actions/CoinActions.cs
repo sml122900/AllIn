@@ -1,6 +1,6 @@
 namespace AllIn.Core.Actions
 {
-    /// <summary>Open the single coin-futures position. Instant: the slot goes on.</summary>
+    /// <summary>Open the single coin-futures position. Takes the slot (at night: an all-nighter).</summary>
     public sealed class CoinOpenAction : IAction
     {
         public readonly Direction Direction;
@@ -15,7 +15,7 @@ namespace AllIn.Core.Actions
         }
 
         public string Id => "coin.open";
-        public bool EndsSlot => false;
+        public bool EndsSlot => true;
         public SlotMask Slots => SlotMask.All;
         public long CashCost(Loop loop) => Commit;
 
@@ -41,20 +41,19 @@ namespace AllIn.Core.Actions
         }
     }
 
-    /// <summary>Close the position at the current price. Not in the slot it was opened (it must survive a tick).</summary>
+    /// <summary>Close the position at the current price. Takes the slot — so it can never happen in the slot it was opened.</summary>
     public sealed class CoinCloseAction : IAction
     {
         public static readonly CoinCloseAction Instance = new CoinCloseAction();
 
         public string Id => "coin.close";
-        public bool EndsSlot => false;
+        public bool EndsSlot => true;
         public SlotMask Slots => SlotMask.All;
         public long CashCost(Loop loop) => 0;
 
         public Availability Check(Loop loop)
         {
             if (!loop.Data.hasPosition) return Availability.No(Texts.CoinNoPosition);
-            if (loop.Data.position.openedAtSlot == loop.AbsSlot) return Availability.No(Texts.CoinSameSlot);
             return Availability.Yes;
         }
 

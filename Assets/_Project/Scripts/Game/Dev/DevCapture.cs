@@ -51,7 +51,9 @@ namespace AllIn.Game.Dev
             app.Coin.Show();
             yield return Wait(0.3f);
             yield return Shot("coin_form");
-            app.Perform(new CoinOpenAction(Direction.Long, 100, app.Loop.Data.cash / 2));
+            app.Perform(new CoinOpenAction(Direction.Long, 100, app.Loop.Data.cash / 2)); // takes the slot, closes the screen
+            yield return DrainEvents(app);
+            app.Coin.Show();
             yield return Wait(0.3f);
             yield return Shot("coin_position");
             app.Coin.Hide();
@@ -66,11 +68,9 @@ namespace AllIn.Game.Dev
             while (!app.Loop.Finished && guard++ < 400)
             {
                 var d = app.Loop.Data;
-                // a crude "player": job in the evening, lotto on dawns, a reckless 50x every other night
+                // a crude "player": lotto on dawns (instant), then exactly one slot action — close in the
+                // afternoon, a reckless 50x every other night, the job in the evening, otherwise rest
                 if (d.slot == Slot.Dawn) app.Perform(LottoBuyAction.Instance);
-                if (d.hasPosition && d.position.openedAtSlot != app.Loop.AbsSlot && d.slot == Slot.Afternoon) app.Perform(CoinCloseAction.Instance);
-                if (d.slot == Slot.Night && !d.hasPosition && d.day % 2 == 0 && d.cash > 100_000)
-                    app.Perform(new CoinOpenAction(Direction.Long, 50, d.cash / 3));
                 if (d.day == 12 && d.slot == Slot.Morning && !_captured.Contains("hope_forced"))
                 {
                     _captured.Add("hope_forced");
@@ -80,7 +80,10 @@ namespace AllIn.Game.Dev
                     yield return DrainEvents(app);
                     app.Coin.Hide();
                 }
-                if (d.slot == Slot.Evening && app.Loop.Check(WorkRestaurantAction.Instance).Ok) app.Perform(WorkRestaurantAction.Instance);
+                if (d.hasPosition && d.slot == Slot.Afternoon) app.Perform(CoinCloseAction.Instance);
+                else if (d.slot == Slot.Night && !d.hasPosition && d.day % 2 == 0 && d.cash > 100_000)
+                    app.Perform(new CoinOpenAction(Direction.Long, 50, d.cash / 3));
+                else if (d.slot == Slot.Evening && app.Loop.Check(WorkRestaurantAction.Instance).Ok) app.Perform(WorkRestaurantAction.Instance);
                 else app.Perform(RestAction.Instance);
                 yield return null;
                 yield return DrainEvents(app);

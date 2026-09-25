@@ -16,7 +16,7 @@ namespace AllIn.Harness.Sim
         {
             string Name { get; }
             string Description { get; }
-            void PlaySlot(Loop loop); // do instant actions, then end the slot with exactly one slot action
+            void PlaySlot(Loop loop); // instant actions (lotto) optional, then exactly one slot action
         }
 
         sealed class JobOnly : IPlayer
@@ -47,8 +47,8 @@ namespace AllIn.Harness.Sim
             {
                 if (!_entered)
                 {
-                    _entered = loop.Do(new CoinOpenAction(Direction.Long, 25, loop.Data.cash)).Ok;
-                    loop.Pass();
+                    _entered = true;
+                    if (!loop.Do(new CoinOpenAction(Direction.Long, 25, loop.Data.cash)).Ok) loop.Pass(); // opening takes the slot
                     return;
                 }
                 if (loop.Data.hasPosition) loop.Pass();
@@ -59,12 +59,14 @@ namespace AllIn.Harness.Sim
         sealed class NightlyScalp10x : IPlayer
         {
             public string Name => "D";
-            public string Description => "코인 10배 올인, 매일 밤 진입 → 새벽 종료 반복";
+            public string Description => "코인 10배 올인, 매일 밤 진입(밤샘) → 다음 행동 가능 슬롯에서 종료 반복";
             public void PlaySlot(Loop loop)
             {
-                if (loop.Data.hasPosition) loop.Do(CoinCloseAction.Instance); // dawn (or first slot awake)
-                if (loop.Data.slot == Slot.Night && !loop.Data.hasPosition && loop.Data.cash > 0)
-                    loop.Do(new CoinOpenAction(Direction.Long, 10, loop.Data.cash));
+                // Lost slots ("can't get up") are skipped by the Loop, so the first slot we see after a night open
+                // is the first one we can act in: dawn normally, afternoon when mental < 15.
+                if (loop.Data.hasPosition && loop.Do(CoinCloseAction.Instance).Ok) return;
+                if (loop.Data.slot == Slot.Night && !loop.Data.hasPosition && loop.Data.cash > 0 &&
+                    loop.Do(new CoinOpenAction(Direction.Long, 10, loop.Data.cash)).Ok) return;
                 loop.Pass();
             }
         }

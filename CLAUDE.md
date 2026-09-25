@@ -39,13 +39,13 @@ Unity.exe -batchmode -quit -projectPath . -executeMethod AllIn.Game.Editor.Proje
 Unity.exe -batchmode -quit -projectPath . -executeMethod AllIn.Game.Editor.ProjectSetup.BuildWindows   # Builds/Win64/AllIn.exe
 Builds/Win64/AllIn.exe -screen-width 1280 -screen-height 720 -screen-fullscreen 0 -allinShots <dir>      # dev capture: scripted 30 days, screenshots every screen/event, uses <dir> as save dir
 ```
-Harness compiles `Core/`, `Holdem/`, `Tests/Core`, `Tests/Holdem` via `<Compile Include>` at C# 9 (Unity's version). Unity compile check: unity-mcp once per session (0 errors); if MCP is unavailable, write "compile unverified" in STATUS.
+Harness compiles `Core/`, `Holdem/`, `Tests/Core`, `Tests/Holdem` via `<Compile Include>` at C# 9 (Unity's version). Unity compile check: unity-mcp once per session (0 errors); if MCP is unavailable (editor closed), use the batchmode commands above; only if neither works write "compile unverified" in STATUS.
 
 ## Conventions
 - Randomness: only `AllIn.Core.IRng` / `Xoshiro128`, seed-injected. `System.Random` and `UnityEngine.Random` are banned. Same seed + same inputs → same result.
 - Money: `long` KRW, displayed with commas + 원 (`Fmt.Won`).
-- Actions implement `Core/Actions/IAction` (slot actions end the slot; instant actions don't). New income/gamble sources plug in the same way.
-- UI: UGUI + TextMeshPro built **in code at runtime** (no hand-edited prefabs/scenes). EventSystem uses `InputSystemUIInputModule`. Korean font: Galmuri TTF in `Assets/_Project/Fonts/Resources/`, turned into a dynamic TMP font at boot. Room backgrounds = world sprites under URP `PixelPerfectCamera` (320×180). Gauges/buttons/popups = Screen Space-Overlay canvas.
+- Actions implement `Core/Actions/IAction`. **1 action = 1 slot**: job, rest/sleep, coin open, coin close each end the slot (at night anything but sleep is an all-nighter). Lotto purchase and looking at the coin screen are free. New income/gamble sources plug in the same way.
+- UI: UGUI + TextMeshPro built **in code at runtime** (no hand-edited prefabs/scenes). EventSystem uses `InputSystemUIInputModule`. Korean font: Galmuri TTF in `Assets/_Project/Fonts/Resources/`, turned into a dynamic TMP font at boot. Room backgrounds = world sprites under the **URP built-in** `UnityEngine.Rendering.Universal.PixelPerfectCamera` (320×180) — do not add the legacy `com.unity.2d.pixel-perfect` package. Gauges/buttons/popups = Screen Space-Overlay canvas.
 - Saves: every saved number is integral (price in whole won, quantity derived) because JsonUtility does not round-trip doubles exactly. `SaveData` lives in Core; JSON IO (`Application.persistentDataPath/allin-save-v1.json`, temp file then replace) lives in Game. Autosave only.
 - Test names state intent: `Liquidation_FiresAtTheTickLossReachesMargin_NotBefore`.
 - Commits: Windows — write the message to a file and `git commit -F .git/COMMIT_MSG` (never inline). A stage is done when harness test + sim pass, Unity compiles with 0 errors, and STATUS is updated.

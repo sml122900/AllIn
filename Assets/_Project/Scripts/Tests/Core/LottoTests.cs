@@ -65,13 +65,14 @@ namespace AllIn.Core.Tests
         [TestCase(2_000_000, 0)]
         [TestCase(2_000_001, 440_000)]
         [TestCase(300_000_000, 66_000_000)]
-        [TestCase(300_000_001, 99_000_000)]
+        [TestCase(300_000_001, 66_000_000)]          // only the 1 won above 300M is taxed at 33%
+        [TestCase(2_000_000_000, 627_000_000)]
         public void Tax_BracketBoundaries(long gross, long expectedTax) => Assert.AreEqual(expectedTax, LottoRules.Tax(gross));
 
         [Test]
-        public void FirstPrize_NetIs1_34Billion()
+        public void FirstPrize_NetIs1_373Billion_Progressive()
         {
-            Assert.AreEqual(1_340_000_000, LottoRules.NetPrize(1));
+            Assert.AreEqual(1_373_000_000, LottoRules.NetPrize(1)); // 2B − (300M×22% + 1.7B×33%)
             Assert.AreEqual(39_000_000, LottoRules.NetPrize(2));
             Assert.AreEqual(1_500_000, LottoRules.NetPrize(3));
         }

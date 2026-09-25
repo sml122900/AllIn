@@ -1,8 +1,9 @@
 namespace AllIn.Core.Actions
 {
     /// <summary>
-    /// Everything the player can do goes through this. Slot actions (job, rest) end the current slot;
-    /// instant actions (coin, lotto) happen inside it. Extension point: stocks, warehouse loading (night slot
+    /// Everything the player can do goes through this. Slot actions (job, rest/sleep, coin open, coin close)
+    /// end the current slot — at night any of them except sleep is an all-nighter; instant actions (lotto) happen
+    /// inside it. Looking at the coin screen is free and isn't an action. Extension point: stocks, warehouse loading (night slot
     /// action → all-nighter), construction, "study" for hold'em, hold'em tournaments plug in here.
     /// </summary>
     public interface IAction

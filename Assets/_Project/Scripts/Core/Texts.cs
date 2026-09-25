@@ -34,6 +34,7 @@ namespace AllIn.Core
         public const string Rested = "쉬었다.";
         public const string Slept = "잤다.";
         public const string AllNighter = "밤을 샜다.";
+        public const string AllNighterWarning = "(밤이다 — 밤샘)";
         public const string BodyZero = "몸이 한계다. 쉴 수밖에 없다.";
         public const string CantGetUp = "못 일어났다. 눈을 뜨니 오후다.";
         public const string RentPaid = "월세 450,000원이 빠져나갔다.";
@@ -51,10 +52,10 @@ namespace AllIn.Core
         public const string CoinLong = "롱";
         public const string CoinShort = "숏";
         public const string CoinOpen = "진입";
+        public const string CoinTakesSlot = "진입·종료하면 이 슬롯이 끝난다.";
         public const string CoinClose = "종료";
         public const string CoinNoPosition = "포지션 없음";
         public const string CoinAlreadyOpen = "이미 포지션이 있다.";
-        public const string CoinSameSlot = "방금 들어갔다. 최소 한 번은 버텨야 한다.";
         public const string CoinNoCash = "돈이 없다.";
         public const string CoinBadLeverage = "그런 레버리지는 없다.";
         public const string CoinBelowMin = "본전 생각이 난다. 이 정도로는 성에 안 찬다.";

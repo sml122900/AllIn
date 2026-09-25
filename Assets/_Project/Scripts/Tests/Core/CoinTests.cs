@@ -39,7 +39,7 @@ namespace AllIn.Core.Tests
             Assert.AreEqual(50_000, CoinRules.EntryFee(p), "100M notional × 0.05%");
             Assert.AreEqual(950_000, p.margin);
             Assert.AreEqual(50_000, CoinRules.ExitFee(p, P0));
-            loop.Pass(); // price unchanged
+            // opening took the slot; the next slot's price is unchanged
             Assert.IsTrue(loop.Do(CoinCloseAction.Instance).Ok);
             Assert.AreEqual(-100_000, loop.Data.stats.coinRealized, "100x round trip at a flat price costs 10% of the commit");
         }
@@ -48,8 +48,7 @@ namespace AllIn.Core.Tests
         public void Fees_ExitUsesNotionalAtTheExitPrice()
         {
             var loop = Run(P0 * 102 / 100);
-            var p = Open(loop, Direction.Long, 10, 1_000_000);
-            loop.Pass();
+            var p = Open(loop, Direction.Long, 10, 1_000_000); // takes the slot; the tick lands on +2%
             Assert.AreEqual(5_100, CoinRules.ExitFee(p, loop.Data.price)); // 10M × 1.02 × 0.05%
         }
 
@@ -60,9 +59,8 @@ namespace AllIn.Core.Tests
             long liq = (long)System.Math.Floor(CoinRules.LiquidationPrice(probe)); // first whole-won price at/below the threshold
             long justAbove = liq + 1; // 1 won above: loss still short of margin × 0.9
             var loop = Run(justAbove, liq);
-            Open(loop, Direction.Long, 25, 10_000_000);
+            Open(loop, Direction.Long, 25, 10_000_000); // takes the slot → first tick at justAbove
 
-            loop.Pass();
             Assert.IsTrue(loop.Data.hasPosition, "one won short of the threshold must not liquidate");
             Assert.AreEqual(0, loop.Data.stats.liquidations);
 
@@ -86,8 +84,8 @@ namespace AllIn.Core.Tests
         public void Liquidation_FiresWhileAsleep_AsE2_ThenE3NextSlot()
         {
             var loop = Run();
-            while (loop.Data.slot != Slot.Night) loop.Pass();
-            var p = Open(loop, Direction.Long, 100, 5_000_000);
+            while (loop.Data.slot != Slot.Evening) loop.Pass();
+            var p = Open(loop, Direction.Long, 100, 5_000_000); // evening → night
             loop.PriceModel = new ScriptedPrices((long)(CoinRules.LiquidationPrice(p) * 0.99));
             loop.Data.pendingEvents.Clear();
             loop.Pass(); // sleep → the night→dawn tick liquidates
@@ -105,22 +103,45 @@ namespace AllIn.Core.Tests
         public void Liquidation_DuringDaytimeTick_IsE1_AndCostsMental40()
         {
             var loop = Run();
-            var p = Open(loop, Direction.Long, 100, 5_000_000);
+            var p = Open(loop, Direction.Long, 100, 5_000_000); // dawn → morning
             loop.PriceModel = new ScriptedPrices((long)(CoinRules.LiquidationPrice(p) * 0.99));
             int mental = loop.Data.mental;
-            loop.Pass(); // dawn → morning
+            loop.Pass(); // morning → afternoon
             Assert.AreEqual(EventIds.LiquidationDay, loop.PopEvent().id);
             Assert.AreEqual(mental - Rules.LiquidationMental, loop.Data.mental);
         }
 
         [Test]
-        public void ManualClose_InTheSameSlot_IsRefused()
+        public void OpenAndClose_EachTakeASlot_SoAPositionAlwaysSurvivesATick()
         {
             var loop = Run(P0);
+            int ticks = loop.Data.priceHistory.Count;
             Open(loop, Direction.Long, 10, 1_000_000);
-            Assert.IsFalse(loop.Do(CoinCloseAction.Instance).Ok);
-            loop.Pass();
+            Assert.AreEqual(Slot.Morning, loop.Data.slot);
+            Assert.AreEqual(ticks + 1, loop.Data.priceHistory.Count);
             Assert.IsTrue(loop.Do(CoinCloseAction.Instance).Ok);
+            Assert.AreEqual(Slot.Afternoon, loop.Data.slot);
+        }
+
+        [Test]
+        public void TradingAtNight_IsAnAllNighter_NoRecoveryMentalMinus5()
+        {
+            var loop = Run();
+            while (loop.Data.slot != Slot.Night) loop.Pass();
+            int body = loop.Data.body, mental = loop.Data.mental;
+            Open(loop, Direction.Long, 10, 1_000_000);
+            Assert.AreEqual(Slot.Dawn, loop.Data.slot);
+            Assert.AreEqual(body, loop.Data.body, "no sleep recovery");
+            Assert.AreEqual(mental - 5, loop.Data.mental);
+        }
+
+        [Test]
+        public void LookingAtTheCoinScreen_IsFree()
+        {
+            var loop = Run();
+            int slot = loop.AbsSlot;
+            loop.OnCoinScreenOpened();
+            Assert.AreEqual(slot, loop.AbsSlot);
         }
 
         [Test]
@@ -132,11 +153,11 @@ namespace AllIn.Core.Tests
         }
 
         [Test]
-        public void OpeningDoesNotEndTheSlot()
+        public void Body0_CantTrade_OnlyRest()
         {
             var loop = Run();
-            Open(loop, Direction.Long, 10, 1_000_000);
-            Assert.AreEqual(Slot.Dawn, loop.Data.slot);
+            loop.Data.body = 0;
+            Assert.IsFalse(loop.Do(new CoinOpenAction(Direction.Long, 10, 1_000_000)).Ok);
         }
 
         [Test]
@@ -144,8 +165,7 @@ namespace AllIn.Core.Tests
         {
             var loop = Run(P0 * 101 / 100);
             long before = loop.Data.cash;
-            var p = Open(loop, Direction.Long, 10, 1_000_000);
-            loop.Pass();
+            var p = Open(loop, Direction.Long, 10, 1_000_000); // tick lands on +1%
             long expected = before - 1_000_000 + p.margin + 100_000; // 10M notional × 1%
             Assert.AreEqual(expected, loop.TotalAssets);
         }
@@ -204,7 +224,6 @@ namespace AllIn.Core.Tests
             var loop = Run(P0 * 105 / 100);
             loop.Data.mental = 85;
             Open(loop, Direction.Long, 10, 5_000_000);
-            loop.Pass();
             loop.Data.pendingEvents.Clear();
             loop.Do(CoinCloseAction.Instance);
             Assert.AreEqual(EventIds.HopeCircuit, loop.PopEvent().id);

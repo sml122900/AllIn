@@ -62,7 +62,7 @@ namespace AllIn.Game.LoopScene
             _positionPanel = Ui.Rect(panel, "Position").Place(0, 0, 1, 1, 30, 30, 30, 310);
             _positionInfo = Ui.Text(_positionPanel, "", 24, align: TextAlignmentOptions.TopLeft);
             _positionInfo.rectTransform.Place(0, 0, 0.7f, 1, 0, 0, 0, 0);
-            _closeButton = Ui.Button(_positionPanel, Texts.CoinClose, OnClose, 30);
+            _closeButton = Ui.Button(_positionPanel, Texts.CoinClose + " →", OnClose, 30);
             _closeButton.Rect.Place(0.72f, 0.35f, 1, 0.75f);
 
             // open form
@@ -88,7 +88,7 @@ namespace AllIn.Game.LoopScene
             ((RectTransform)_slider.transform).Place(0, 1, 1, 1, 0, -130, 0, 80);
             _commitInfo = Ui.Text(_openForm, "", 22, align: TextAlignmentOptions.TopLeft);
             _commitInfo.rectTransform.Place(0, 0, 0.7f, 1, 0, 0, 0, 140);
-            _openButton = Ui.Button(_openForm, Texts.CoinOpen, OnOpen, 30);
+            _openButton = Ui.Button(_openForm, Texts.CoinOpen + " →", OnOpen, 30);
             _openButton.Rect.Place(0.72f, 0.05f, 1, 0.45f);
 
             _reason = Ui.Text(panel, "", 20, Palette.Accent, TextAlignmentOptions.Center);
@@ -115,13 +115,15 @@ namespace AllIn.Game.LoopScene
         {
             long commit = Commit();
             var r = _app.Perform(new CoinOpenAction(_dir, _leverage, commit));
-            if (!r.Ok) _reason.text = r.Message;
+            if (r.Ok) Hide(); // the slot is over; back to the room
+            else _reason.text = r.Message;
         }
 
         void OnClose()
         {
             var r = _app.Perform(CoinCloseAction.Instance);
-            if (!r.Ok) _reason.text = r.Message;
+            if (r.Ok) Hide();
+            else _reason.text = r.Message;
         }
 
         long Commit()
@@ -153,7 +155,7 @@ namespace AllIn.Game.LoopScene
             bool has = d.hasPosition;
             _positionPanel.gameObject.SetActive(has);
             _openForm.gameObject.SetActive(!has);
-            _reason.text = "";
+            _reason.text = Texts.CoinTakesSlot + (d.slot == Slot.Night ? " " + Texts.AllNighterWarning : "");
 
             if (has)
             {
@@ -167,7 +169,7 @@ namespace AllIn.Game.LoopScene
                     Texts.CoinUnrealized + " <color=" + Ui.Hex(u >= 0 ? Palette.Up : Palette.Down) + ">" + Fmt.SignedWon(u) + "</color>";
                 var can = loop.Check(CoinCloseAction.Instance);
                 _closeButton.Interactable = can.Ok;
-                if (!can.Ok) _reason.text = can.Reason;
+                if (!can.Ok && !string.IsNullOrEmpty(can.Reason)) _reason.text = can.Reason;
             }
             else
             {
