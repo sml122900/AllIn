@@ -31,7 +31,7 @@ namespace AllIn.Holdem
         public static readonly long[] MainPrizes = { 100_000_000, 50_000_000, 30_000_000, 5_000_000, 5_000_000, 5_000_000, 5_000_000, 5_000_000, 5_000_000 };
         public const double MainTaxRate = 0.22;
         public const int MainFieldSize = 200;
-        public const double OffTableEliminationRate = 0.08; // × players not at our table, per hand
+        public const double OffTableEliminationRate = 0.05; // × players not at our table, per hand
         public const double MainRefillProShare = 0.60;       // rest split evenly across the other three
 
         // C6 presentation
