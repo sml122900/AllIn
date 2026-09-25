@@ -49,7 +49,7 @@ namespace AllIn.Holdem
 
     public enum EventKind
     {
-        HandStart, PostBlind, HoleCards, Action, Board, Runout, Show, PotWon, HandEnd,
+        HandStart, PostBlind, HoleCards, Action, Board, Runout, Reveal, Show, PotWon, HandEnd,
         LevelUp, Busted, Reentry, Refill, FieldCount, Bubble, BadBeat, FinalTable, TournamentEnd,
     }
 

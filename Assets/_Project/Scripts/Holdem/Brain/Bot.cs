@@ -120,6 +120,9 @@ namespace AllIn.Holdem.Brain
 
         // ---------- postflop ----------
 
+        /// <summary>Postflop decision alone — lets other players (e.g. measurement bots) reuse this personality's play.</summary>
+        public PlayerAction DecidePostflop(Tournament t, int seat) => Postflop(t, t.Hand, seat);
+
         PlayerAction Postflop(Tournament t, HandState h, int s)
         {
             var legal = h.LegalFor(s);

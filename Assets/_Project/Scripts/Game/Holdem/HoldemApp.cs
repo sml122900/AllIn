@@ -58,6 +58,15 @@ namespace AllIn.Game.HoldemScene
         bool _runout;
         int _eventCursor;
 
+        // tempo (decision C): hands the hero is out of play instantly, except all-in showcases unless "quick" is on
+        bool _heroInHand, _showcase, _quick;
+        Ui.Btn _quickButton;
+        TextMeshProUGUI _log;
+        readonly List<string> _logLines = new List<string>();
+        readonly List<int> _boardCards = new List<int>();
+        readonly List<int> _revealed = new List<int>();
+        readonly Xoshiro128 _uiRng = new Xoshiro128(0xE0E0); // presentation-only equity; never touches the tournament's stream
+
         void Awake()
         {
             Fonts.Ensure();
@@ -136,6 +145,8 @@ namespace AllIn.Game.HoldemScene
             ClearOverlay();
             AtResult = false;
             _eventCursor = 0;
+            _logLines.Clear();
+            _log.text = "";
             for (int i = 0; i < _seats.Length; i++) { _stack[i] = cfg.StartingChips; _bet[i] = 0; }
             _pot = 0;
             StartCoroutine(Run());
@@ -182,6 +193,13 @@ namespace AllIn.Game.HoldemScene
             _banner = Ui.Text(_table, "", 40, Palette.Accent, TextAlignmentOptions.Center, true);
             _banner.rectTransform.Box(0.5f, 0.5f, 900, 120, 0, TableCy + 150);
 
+            _log = Ui.Text(_table, "", 15, Palette.Dim, TextAlignmentOptions.BottomLeft);
+            _log.rectTransform.Place(0, 0, 0, 0, 12, 112, -430, -300);
+            _log.overflowMode = TextOverflowModes.Truncate;
+            _quickButton = Ui.Button(_table, "", () => { _quick = !_quick; RefreshQuick(); }, 18);
+            _quickButton.Rect.Place(1, 1, 1, 1, -170, -52, 12, 12);
+            RefreshQuick();
+
             _overlay = Ui.Rect(_canvas.transform, "Overlay");
             _blackout = Ui.Image(_canvas.transform, "Blackout", new Color(0, 0, 0, 0));
         }
@@ -220,18 +238,18 @@ namespace AllIn.Game.HoldemScene
             while (true)
             {
                 while (_eventCursor < t.Events.Count)
-                    yield return Play(t.Events[_eventCursor++]);
+                    yield return PlayEvent(t.Events[_eventCursor++]);
                 if (t.Finished) break;
 
                 var step = t.Step();
                 if (step == StepResult.NeedHeroAction)
                 {
-                    while (_eventCursor < t.Events.Count) yield return Play(t.Events[_eventCursor++]);
+                    while (_eventCursor < t.Events.Count) yield return PlayEvent(t.Events[_eventCursor++]);
                     yield return HeroTurn();
                 }
                 else if (step == StepResult.NeedHeroReentry)
                 {
-                    while (_eventCursor < t.Events.Count) yield return Play(t.Events[_eventCursor++]);
+                    while (_eventCursor < t.Events.Count) yield return PlayEvent(t.Events[_eventCursor++]);
                     yield return ReentryPrompt();
                 }
             }
@@ -270,6 +288,89 @@ namespace AllIn.Game.HoldemScene
 
         // ================= events =================
 
+        /// <summary>Plays an event with its pauses, or applies it at once when the hero has no stake in the hand.</summary>
+        IEnumerator PlayEvent(HoldemEvent e)
+        {
+            if (e.Kind == EventKind.Reveal) _showcase = true;
+            var it = Play(e);
+            if (!Instant(e))
+            {
+                yield return it;
+                yield break;
+            }
+            Drain(it);
+        }
+
+        bool Instant(HoldemEvent e)
+        {
+            if (_heroInHand) return false;
+            switch (e.Kind)
+            {
+                case EventKind.Reveal:
+                case EventKind.Board:
+                case EventKind.Show:
+                case EventKind.PotWon:
+                    return !_showcase || _quick; // an all-in is worth watching, unless the player asked for speed
+                case EventKind.PostBlind:
+                case EventKind.HoleCards:
+                case EventKind.Action:
+                case EventKind.Runout:
+                case EventKind.HandEnd:
+                    return true;
+                default:
+                    return false; // level-ups, busts, bubble, merges, bad beats always play
+            }
+        }
+
+        /// <summary>Runs a presentation coroutine to completion in one go, skipping its waits.</summary>
+        static void Drain(IEnumerator it)
+        {
+            while (it.MoveNext())
+                if (it.Current is IEnumerator inner) Drain(inner);
+        }
+
+        void RefreshQuick() => _quickButton.Label.text = Texts.HoldemQuick + (_quick ? " ON" : " OFF");
+
+        void Log(string line)
+        {
+            _logLines.Add(line);
+            if (_logLines.Count > 6) _logLines.RemoveAt(0);
+            _log.text = string.Join("\n", _logLines);
+        }
+
+        /// <summary>One line per hand: who won how much from whom.</summary>
+        void LogHandSummary()
+        {
+            var t = Tournament;
+            var h = t.Hand;
+            var winners = new List<string>();
+            var losers = new List<string>();
+            for (int s = 0; s < HandState.Seats; s++)
+            {
+                if (!h.InHand[s]) continue;
+                long net = h.Won[s] - h.Committed[s];
+                if (net > 0) winners.Add(t.Seats[s].Name + " +" + net.ToString("N0"));
+                else if (net < 0) losers.Add(t.Seats[s].Name);
+            }
+            if (winners.Count > 0) Log("#" + t.HandNumber + " " + string.Join(", ", winners) + (losers.Count > 0 ? " ← " + string.Join("·", losers) : ""));
+        }
+
+        /// <summary>Study level ≥ 3: each revealed hand's equity on the current board (exact on the turn, Monte Carlo before).</summary>
+        void ShowEquities()
+        {
+            if (_study < 3 || _revealed.Count < 2 || _boardCards.Count >= 5) return;
+            var h = Tournament.Hand;
+            var hands = new int[_revealed.Count][];
+            for (int i = 0; i < hands.Length; i++) hands[i] = new[] { h.Hole0[_revealed[i]], h.Hole1[_revealed[i]] };
+            var board = new int[5];
+            for (int i = 0; i < _boardCards.Count; i++) board[i] = _boardCards[i];
+            for (int i = 0; i < hands.Length; i++)
+            {
+                double eq = Equity.VsKnown(hands, i, board, _boardCards.Count, _uiRng, 1000);
+                _seats[_revealed[i]].SetAction(Texts.HoldemEquity(eq));
+            }
+        }
+
         IEnumerator Play(HoldemEvent e)
         {
             var t = Tournament;
@@ -286,6 +387,10 @@ namespace AllIn.Game.HoldemScene
                     }
                     PaintPositions(h);
                     RefreshInfo();
+                    _heroInHand = h.InHand[HoldemRules.HeroSeat];
+                    _showcase = false;
+                    _boardCards.Clear();
+                    _revealed.Clear();
                     yield return Wait(0.35f);
                     break;
                 case EventKind.PostBlind:
@@ -301,6 +406,7 @@ namespace AllIn.Game.HoldemScene
                     Put(e.Seat, e.Amount2);
                     _seats[e.Seat].SetAction(ActionLabel(e));
                     if (e.Action == ActionType.Fold) _seats[e.Seat].Fold();
+                    if (e.Action == ActionType.Fold && e.Seat == HoldemRules.HeroSeat) _heroInHand = false;
                     RefreshSeat(e.Seat);
                     RefreshPot();
                     yield return Wait(e.Seat == HoldemRules.HeroSeat ? 0.15f : 0.5f);
@@ -308,15 +414,30 @@ namespace AllIn.Game.HoldemScene
                 case EventKind.Runout:
                     _runout = true;
                     break;
+                case EventKind.Reveal:
+                    CollectBets();
+                    _revealed.Add(e.Seat);
+                    _seats[e.Seat].ShowCards(e.Cards[0], e.Cards[1]);
+                    bool lastReveal = _eventCursor >= t.Events.Count || t.Events[_eventCursor].Kind != EventKind.Reveal;
+                    if (lastReveal)
+                    {
+                        ShowEquities();
+                        if (OnMoment != null) yield return OnMoment(_boardCards.Count < 5 ? "allin_reveal_before_river" : "allin_reveal_on_river");
+                        yield return Wait(0.8f);
+                    }
+                    break;
                 case EventKind.Board:
                     CollectBets();
                     bool river = e.Street == Street.River;
-                    float delay = river ? (_runout ? HoldemRules.RiverDelayAllIn : HoldemRules.RiverDelay) : 0.55f;
+                    float delay = river ? (_runout ? HoldemRules.RiverDelayAllIn : HoldemRules.RiverDelay)
+                                : e.Street == Street.Turn && _runout ? HoldemRules.TurnDelayAllIn : 0.55f;
                     if (river && _runout) yield return Shake(delay);
                     else yield return Wait(delay);
                     int first = e.Street == Street.Flop ? 0 : e.Street == Street.Turn ? 3 : 4;
                     for (int i = 0; i < e.Cards.Length; i++) _board[first + i].SetCard(e.Cards[i]);
+                    _boardCards.AddRange(e.Cards);
                     for (int s = 0; s < _seats.Length; s++) _seats[s].SetAction("");
+                    if (_runout) ShowEquities();
                     if (OnMoment != null && river) yield return OnMoment(_runout ? "river_allin" : "river");
                     break;
                 case EventKind.Show:
@@ -329,7 +450,8 @@ namespace AllIn.Game.HoldemScene
                     CollectBets();
                     _stack[e.Seat] += e.Amount;
                     _pot = Math.Max(0, _pot - e.Amount);
-                    _seats[e.Seat].SetAction("<color=" + Ui.Hex(Palette.Up) + ">+" + e.Amount.ToString("N0") + "</color>");
+                    string handName = e.Score > 0 && _showcase ? " · " + Texts.HoldemHandNames[(int)HandEvaluator.Category(e.Score)] : "";
+                    _seats[e.Seat].SetAction("<color=" + Ui.Hex(Palette.Up) + ">+" + e.Amount.ToString("N0") + "</color>" + handName);
                     _seats[e.Seat].Highlight(true);
                     RefreshSeat(e.Seat);
                     RefreshPot();
@@ -337,6 +459,7 @@ namespace AllIn.Game.HoldemScene
                     yield return Wait(1.1f);
                     break;
                 case EventKind.HandEnd:
+                    LogHandSummary();
                     _runout = false;
                     yield return Wait(0.4f);
                     break;
@@ -345,6 +468,7 @@ namespace AllIn.Game.HoldemScene
                     break;
                 case EventKind.Busted:
                     _seats[e.Seat].Bust(Texts.HoldemBusted((int)e.Amount));
+                    Log(Tournament.Seats[e.Seat].Name + " " + Texts.HoldemBusted((int)e.Amount));
                     RefreshInfo();
                     yield return Wait(0.6f);
                     break;

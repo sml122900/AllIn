@@ -38,6 +38,7 @@ namespace AllIn.Holdem
         public const double BadBeatEquity = 0.70;
         public const float RiverDelay = 0.9f;
         public const float RiverDelayAllIn = 1.5f;
+        public const float TurnDelayAllIn = 0.9f;
         public const float BadBeatBlackout = 0.5f;
 
         // C5 HUD

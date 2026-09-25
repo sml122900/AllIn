@@ -179,6 +179,8 @@ namespace AllIn.Core
         public static readonly string[] HoldemChipPiles = { "칩 ▪ 적음", "칩 ▪▪ 보통", "칩 ▪▪▪ 많음" };
         public static readonly string[] HoldemHandNames = { "하이카드", "원페어", "투페어", "트리플", "스트레이트", "플러시", "풀하우스", "포카드", "스트레이트 플러시" };
         public const string HoldemWin = "승리";
+        public const string HoldemQuick = "빠르게";
+        public static string HoldemEquity(double eq) => "에퀴티 " + (eq * 100).ToString("F0") + "%";
 
         // HUD
         public const string Cash = "현금";

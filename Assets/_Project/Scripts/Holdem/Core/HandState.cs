@@ -299,6 +299,7 @@ namespace AllIn.Holdem
                 {
                     RunoutFromBoardCount = BoardCount;
                     Events.Add(new HoldemEvent { Kind = EventKind.Runout, Street = Street });
+                    RevealAll(); // all-in and no betting left: everyone tables their cards before the board comes
                 }
                 Street++;
                 int n = Street == Street.Flop ? 3 : 1;
@@ -335,13 +336,41 @@ namespace AllIn.Holdem
                 Street = Street.Showdown;
                 for (int s = 0; s < Seats; s++)
                     if (InHand[s] && !Folded[s]) Scores[s] = HandEvaluator.Evaluate(Hole0[s], Hole1[s], Board, 5);
-                BuildShowOrder();
-                foreach (int s in ShowOrder)
-                    Events.Add(new HoldemEvent { Kind = EventKind.Show, Seat = s, Cards = new[] { Hole0[s], Hole1[s] }, Score = Scores[s] });
+                if (!RevealedAtAllIn && AnyAllIn()) RevealAll(); // all-in called on the river: same, cards up at once
+                if (!RevealedAtAllIn)
+                {
+                    // no all-in: last river aggressor shows first
+                    BuildShowOrder();
+                    foreach (int s in ShowOrder)
+                        Events.Add(new HoldemEvent { Kind = EventKind.Show, Seat = s, Cards = new[] { Hole0[s], Hole1[s] }, Score = Scores[s] });
+                }
             }
             BuildPots();
             AwardPots();
             Events.Add(new HoldemEvent { Kind = EventKind.HandEnd });
+        }
+
+        /// <summary>True when an all-in closed the betting and every live hand was turned face up at once.</summary>
+        public bool RevealedAtAllIn { get; private set; }
+
+        bool AnyAllIn()
+        {
+            for (int s = 0; s < Seats; s++) if (InHand[s] && !Folded[s] && IsAllIn[s]) return true;
+            return false;
+        }
+
+        /// <summary>Tournament all-in rule: all live hands face up, clockwise from the button's left.</summary>
+        void RevealAll()
+        {
+            RevealedAtAllIn = true;
+            ShowOrder.Clear();
+            for (int k = 1; k <= Seats; k++)
+            {
+                int s = (Button + k) % Seats;
+                if (!InHand[s] || Folded[s]) continue;
+                ShowOrder.Add(s);
+                Events.Add(new HoldemEvent { Kind = EventKind.Reveal, Seat = s, Cards = new[] { Hole0[s], Hole1[s] }, Street = Street });
+            }
         }
 
         /// <summary>Last aggressor on the river shows first, then clockwise; with no river bet, first player left of the button.</summary>

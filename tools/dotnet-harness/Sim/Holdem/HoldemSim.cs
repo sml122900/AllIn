@@ -92,6 +92,7 @@ namespace AllIn.Harness.Sim.Holdem
             }
             sb.AppendLine();
             sb.AppendLine("참고: 9인 테이블에서 무작위 기대 우승률 = 11.1%. Main은 필드 200명 기준(충원 포함 참가자 수로 나눔).");
+            sb.Append(SkillMeasure.Run(runs));
 
             Directory.CreateDirectory(Path.GetDirectoryName(reportPath));
             File.WriteAllText(reportPath, sb.ToString().Replace("\r\n", "\n"));

@@ -205,6 +205,50 @@ namespace AllIn.Holdem.Tests
         }
 
         [Test]
+        public void AllIn_WhenActionCloses_EveryHandIsRevealedAtOnce_BeforeTheBoard()
+        {
+            var h = Hand(0, 1000, 1000, 1000);
+            h.Apply(PlayerAction.AllIn); // BTN
+            h.Apply(PlayerAction.Fold);  // SB
+            h.Apply(PlayerAction.Call);  // BB calls all-in: nobody left to bet
+            var kinds = h.Events.Select(e => e.Kind).ToList();
+            int firstReveal = kinds.IndexOf(EventKind.Reveal);
+            int firstBoard = kinds.IndexOf(EventKind.Board);
+            Assert.GreaterOrEqual(firstReveal, 0);
+            Assert.Less(firstReveal, firstBoard, "cards up before the flop is dealt");
+            CollectionAssert.AreEqual(new[] { 2, 0 }, h.Events.Where(e => e.Kind == EventKind.Reveal).Select(e => e.Seat).ToArray(),
+                "left of the button first; the folded SB shows nothing");
+            Assert.IsFalse(kinds.Contains(EventKind.Show), "no second, aggressor-ordered showdown");
+            Assert.IsTrue(h.RevealedAtAllIn);
+        }
+
+        [Test]
+        public void AllIn_WithTwoPlayersStillBetting_NoRevealUntilTheirActionIsDone()
+        {
+            var h = Hand(0, 1000, 5000, 5000);
+            h.Apply(PlayerAction.AllIn); // BTN 1000
+            h.Apply(PlayerAction.Call);  // SB
+            h.Apply(PlayerAction.Call);  // BB
+            Assert.AreEqual(Street.Flop, h.Street);
+            Assert.IsFalse(h.Events.Any(e => e.Kind == EventKind.Reveal), "SB and BB can still bet each other");
+            for (int st = 0; st < 3; st++) { h.Apply(PlayerAction.Check); h.Apply(PlayerAction.Check); }
+            Assert.IsTrue(h.IsOver);
+            Assert.IsTrue(h.RevealedAtAllIn, "an all-in player is in the showdown: all cards at once");
+        }
+
+        [Test]
+        public void RiverShowdown_WithoutAllIn_KeepsAggressorOrder_NoReveal()
+        {
+            var h = Hand(0, 5000, 5000, 5000);
+            h.Apply(PlayerAction.Call); h.Apply(PlayerAction.Call); h.Apply(PlayerAction.Check);
+            for (int st = 0; st < 2; st++) { h.Apply(PlayerAction.Check); h.Apply(PlayerAction.Check); h.Apply(PlayerAction.Check); }
+            h.Apply(PlayerAction.Check); h.Apply(PlayerAction.BetTo(300)); h.Apply(PlayerAction.Call); h.Apply(PlayerAction.Call);
+            Assert.IsFalse(h.Events.Any(e => e.Kind == EventKind.Reveal));
+            Assert.IsFalse(h.RevealedAtAllIn);
+            CollectionAssert.AreEqual(new[] { 2, 0, 1 }, h.Events.Where(e => e.Kind == EventKind.Show).Select(e => e.Seat).ToArray());
+        }
+
+        [Test]
         public void ShowOrder_NoRiverBet_StartsLeftOfButton()
         {
             var h = Hand(0, 5000, 5000, 5000);
