@@ -119,6 +119,14 @@ namespace AllIn.Core
         public const string E7Again = "다시 전역일로";
         public static readonly string[] SceneNames = { "청산(낮)", "새벽 3시 청산 알림", "신세한탄", "희망회로", "로또 추첨", "이사" };
 
+        // hold'em (placeholder names; personalities are never shown)
+        public const string HoldemHeroName = "나";
+        public static readonly string[] HoldemNames =
+        {
+            "김대리", "박부장", "취한 아저씨", "민수", "지훈", "서연", "하은", "도윤", "준호", "민지",
+            "태식", "영철", "수빈", "재원", "현우", "유진", "상철", "동건", "미래", "건우",
+        };
+
         // HUD
         public const string Cash = "현금";
         public const string Assets = "총자산";
