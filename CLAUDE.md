@@ -37,9 +37,10 @@ Unity (batchmode, editor closed; path `C:/Program Files/Unity/Hub/Editor/6000.3.
 Unity.exe -batchmode -projectPath . -runTests -testPlatform EditMode -testResults <xml> -logFile <log>   # compile + all tests incl. Game save round-trip
 Unity.exe -batchmode -quit -projectPath . -executeMethod AllIn.Game.Editor.ProjectSetup.Run            # scenes + build settings (idempotent)
 Unity.exe -batchmode -quit -projectPath . -executeMethod AllIn.Game.Editor.ProjectSetup.BuildWindows   # Builds/Win64/AllIn.exe
-Builds/Win64/AllIn.exe -screen-width 1280 -screen-height 720 -screen-fullscreen 0 -allinShots <dir>      # dev capture: scripted 30 days, screenshots every screen/event, uses <dir> as save dir
+Builds/Win64/AllIn.exe -screen-width 1280 -screen-height 720 -screen-fullscreen 0 -allinShots <dir>        # dev capture: scripted 30 days, screenshots every screen/event, uses <dir> as save dir
+Builds/Win64/AllIn.exe -screen-width 1280 -screen-height 720 -screen-fullscreen 0 -allinHoldemShots <dir>  # dev capture: Pro bot plays a Pub (HUD 4) + a few Main hands (HUD 0)
 ```
-Harness compiles `Core/`, `Holdem/`, `Tests/Core`, `Tests/Holdem` via `<Compile Include>` at C# 9 (Unity's version). Unity compile check: unity-mcp once per session (0 errors); if MCP is unavailable (editor closed), use the batchmode commands above; only if neither works write "compile unverified" in STATUS.
+Harness compiles `Core/`, `Holdem/`, `Tests/Core`, `Tests/Holdem` via `<Compile Include>` at C# 9 (Unity's version). When the editor is open (batchmode refuses to run), use unity-mcp: `AssetDatabase.Refresh` → check `EditorUtility.scriptCompilationFailed`, run tests via `TestRunnerApi`, build via `BuildPipeline.BuildPlayer`. Unity compile check: unity-mcp once per session (0 errors); if MCP is unavailable (editor closed), use the batchmode commands above; only if neither works write "compile unverified" in STATUS.
 
 ## Conventions
 - Randomness: only `AllIn.Core.IRng` / `Xoshiro128`, seed-injected. `System.Random` and `UnityEngine.Random` are banned. Same seed + same inputs → same result.

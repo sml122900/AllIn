@@ -127,6 +127,59 @@ namespace AllIn.Core
             "태식", "영철", "수빈", "재원", "현우", "유진", "상철", "동건", "미래", "건우",
         };
 
+        // hold'em table UI
+        public static readonly string[] HoldemKindNames = { "홀덤펍 데일리", "새틀라이트", "메인 이벤트" };
+        public const string HoldemMenuTitle = "홀덤 토너먼트";
+        public const string HoldemStudy = "공부 레벨 (HUD)";
+        public static readonly string[] HoldemStudyNames = { "0 · 기본", "1 · 스택 bb", "2 · 포지션", "3 · 팟오즈", "4 · 푸시/폴드" };
+        public const string HoldemSeed = "시드";
+        public const string HoldemRandomSeed = "랜덤";
+        public const string HoldemStart = "시작";
+        public const string HoldemFold = "폴드";
+        public const string HoldemCheck = "체크";
+        public const string HoldemCall = "콜";
+        public const string HoldemBet = "벳";
+        public const string HoldemRaise = "레이즈";
+        public const string HoldemAllIn = "올인";
+        public static readonly string[] HoldemPresets = { "1/2팟", "2/3팟", "팟", "올인" };
+        public const string HoldemPot = "팟";
+        public const string HoldemPotOdds = "팟오즈";
+        public const string HoldemPushFold = "푸시/폴드";
+        public const string HoldemTooDeep = "15bb 초과 — 푸시/폴드 구간 아님";
+        public static string HoldemPushAdvice(double topPercent, double bb, string pos) =>
+            pos + " · " + bb.ToString("F1") + "bb\n푸시 권장: 상위 " + topPercent.ToString("F0") + "%";
+        public static string HoldemCallAdvice(double topPercent, double bb, string shoverPos) =>
+            shoverPos + " 올인에 콜 · " + bb.ToString("F1") + "bb\n콜 권장: 상위 " + topPercent.ToString("F0") + "%";
+        public static string HoldemMyHand(string cls, double percentile, bool inRange) =>
+            "내 핸드 " + cls + " (상위 " + percentile.ToString("F0") + "%) → " + (inRange ? "O" : "X");
+        public static string HoldemLevel(int level, long sb, long bb) => "레벨 " + level + " · " + sb.ToString("N0") + "/" + bb.ToString("N0");
+        public static string HoldemNextLevel(int hands) => "다음 레벨까지 " + hands + "핸드";
+        public static string HoldemHandNo(int n) => "핸드 #" + n;
+        public static string HoldemRemaining(int n) => "남은 인원 " + n + "명";
+        public const string HoldemFinalTable = "파이널 테이블";
+        public const string HoldemBubble = "버블";
+        public const string HoldemBubbleSub = "한 명만 더 떨어지면 입상";
+        public const string HoldemTablesMerged = "테이블이 합쳐졌다";
+        public static readonly string[] HoldemBadBeatLines = { "…말이 되냐.", "이게 빠진다고?", "리버. 또 리버." };
+        public static string HoldemReentryPrompt(long cost) => "리엔트리 " + cost.ToString("N0") + "원?";
+        public static string HoldemBusted(int finish) => "탈락 · " + finish + "위";
+        public const string HoldemReentered = "리엔트리";
+        public const string HoldemResultTitle = "결과";
+        public static string HoldemFinish(int finish) => finish + "위";
+        public const string HoldemPrizeNone = "상금 없음";
+        public const string HoldemPrizeSatSeat = "새틀라이트 참가권 1장";
+        public const string HoldemPrizeMainSeat = "메인 이벤트 시트";
+        public static string HoldemPrizePoints(long p) => "펍 포인트 " + p + "점";
+        public static string HoldemPrizeCash(long gross, long net) => Fmt.Won(gross) + "  (제세공과금 22% 공제 후 " + Fmt.Won(net) + ")";
+        public const string HoldemHandsPlayed = "플레이한 핸드";
+        public const string HoldemReentries = "리엔트리";
+        public const string HoldemBadBeats = "배드빗";
+        public const string HoldemBubbleReached = "버블 도달";
+        public const string HoldemBackToMenu = "메뉴로";
+        public static readonly string[] HoldemChipPiles = { "칩 ▪ 적음", "칩 ▪▪ 보통", "칩 ▪▪▪ 많음" };
+        public static readonly string[] HoldemHandNames = { "하이카드", "원페어", "투페어", "트리플", "스트레이트", "플러시", "풀하우스", "포카드", "스트레이트 플러시" };
+        public const string HoldemWin = "승리";
+
         // HUD
         public const string Cash = "현금";
         public const string Assets = "총자산";
