@@ -33,11 +33,13 @@ namespace AllIn.Game.LoopScene
         Canvas _hud;
         TextMeshProUGUI _dayText, _cashText, _assetText, _roomText, _positionText, _logText, _hintText;
         Ui.Gauge _body, _mental;
-        Ui.Btn _work, _coin, _lotto, _rest;
+        Ui.Btn _work, _coin, _exchange, _lotto, _rest;
         UnityEngine.UI.Image _roomShade;
         float _hintUntil;
 
         public CoinScreen Coin { get; private set; }
+        public ExchangeScreen Exchange { get; private set; }
+        public WatchScreen Watch { get; private set; }
         public LottoScreen Lotto { get; private set; }
         public EventPresenter Events { get; private set; }
 
@@ -49,6 +51,8 @@ namespace AllIn.Game.LoopScene
             BuildWorld();
             BuildHud();
             Coin = CoinScreen.Create(this);
+            Exchange = ExchangeScreen.Create(this);
+            Watch = WatchScreen.Create(this);
             Lotto = LottoScreen.Create(this);
             Events = EventPresenter.Create(this);
 
@@ -65,6 +69,7 @@ namespace AllIn.Game.LoopScene
             SaveIO.Delete();
             Loop = Core.Loop.NewRun(NewSeed());
             Coin.Hide();
+            Exchange.Hide();
             Lotto.Hide();
             Save();
             Refresh();
@@ -72,15 +77,33 @@ namespace AllIn.Game.LoopScene
 
         public void Save() => SaveIO.Save(Loop.Snapshot());
 
-        /// <summary>The one door every player action goes through.</summary>
+        /// <summary>The one door every player action goes through. Slot-ending actions that could leave a position
+        /// at risk this slot (B5a) route through the watch scene before the result is finalized.</summary>
         public ActionResult Perform(IAction action)
         {
-            if (Events.Busy) return ActionResult.Refused("");
-            var result = Loop.Do(action);
-            if (!result.Ok && !string.IsNullOrEmpty(result.Message)) Hint(result.Message);
-            Save();
+            if (Events.Busy || Watch.Busy) return ActionResult.Refused("");
+            bool sleeping = action is RestAction && Loop.Data.slot == Slot.Night;
+            bool working = action is WorkRestaurantAction;
+
+            var w = Loop.BeginWatchableAction(action);
+            if (w.Walk == null)
+            {
+                if (!w.Result.Ok && !string.IsNullOrEmpty(w.Result.Message)) Hint(w.Result.Message);
+                Save();
+                Refresh();
+                return w.Result;
+            }
+
             Refresh();
-            return result;
+            if (w.Walk.WatchTriggered && !sleeping) StartCoroutine(Watch.Run(w.Walk, working));
+            else
+            {
+                w.Walk.RunToEnd();
+                Loop.FinishWatch(w.Walk);
+                Save();
+                Refresh();
+            }
+            return w.Result;
         }
 
         public void Hint(string text)
@@ -205,25 +228,27 @@ namespace AllIn.Game.LoopScene
             var bottom = Ui.Image(root, "ActionBar", Palette.Panel).rectTransform.Place(0, 0, 1, 0, 0, 0, 0, -120);
             _hintText = Ui.Text(root, "", 22, Palette.Accent, TextAlignmentOptions.Center);
             _hintText.rectTransform.Place(0, 0, 1, 0, 0, 122, 0, -160);
-            string[] labels = { Texts.ActWork, Texts.ActCoin, Texts.ActLotto, Texts.ActRest };
+            string[] labels = { Texts.ActWork, Texts.ActCoin, Texts.WalletBank, Texts.ActLotto, Texts.ActRest };
             Action[] actions =
             {
                 () => Perform(WorkRestaurantAction.Instance),
                 () => Coin.Show(),
+                () => Exchange.Show(),
                 () => Lotto.Show(),
                 () => Perform(RestAction.Instance),
             };
-            var buttons = new Ui.Btn[4];
-            for (int i = 0; i < 4; i++)
+            var buttons = new Ui.Btn[5];
+            for (int i = 0; i < 5; i++)
             {
-                float x0 = i / 4f, x1 = (i + 1) / 4f;
-                buttons[i] = Ui.Button(bottom, labels[i], actions[i], 30);
-                buttons[i].Rect.Place(x0, 0, x1, 1, 14, 18, 14, 18);
+                float x0 = i / 5f, x1 = (i + 1) / 5f;
+                buttons[i] = Ui.Button(bottom, labels[i], actions[i], 28);
+                buttons[i].Rect.Place(x0, 0, x1, 1, 12, 18, 12, 18);
             }
             _work = buttons[0];
             _coin = buttons[1];
-            _lotto = buttons[2];
-            _rest = buttons[3];
+            _exchange = buttons[2];
+            _lotto = buttons[3];
+            _rest = buttons[4];
         }
 
         public void SetRoomShade(float alpha) => _roomShade.color = new Color(0, 0, 0, alpha);
@@ -233,7 +258,7 @@ namespace AllIn.Game.LoopScene
             var d = Loop.Data;
             PaintRoom();
             _dayText.text = Texts.DayLabel(d.day) + "  " + Texts.SlotNames[(int)d.slot] + " <size=20><color=#8c8c94>" + Texts.SlotHours[(int)d.slot] + "</color></size>";
-            _cashText.text = Texts.Cash + " " + Fmt.Won(d.cash);
+            _cashText.text = Texts.WalletBank + " " + Fmt.Won(d.bankCash);
             _assetText.text = Texts.Assets + " " + Fmt.Won(Loop.TotalAssets);
             _body.Set(d.body);
             _mental.Set(d.mental);
@@ -257,6 +282,7 @@ namespace AllIn.Game.LoopScene
             _work.Interactable = alive && Loop.Check(WorkRestaurantAction.Instance).Ok;
             _work.Label.text = Texts.ActWork + (d.slot == Slot.Evening ? "" : "\n<size=18>(" + Texts.SlotNames[(int)Slot.Evening] + ")</size>");
             _coin.Interactable = alive;
+            _exchange.Interactable = alive;
             _lotto.Interactable = alive && d.slot != Slot.Night;
             _rest.Interactable = alive;
             _rest.Label.text = (d.slot == Slot.Night ? Texts.ActSleep : Texts.ActRest) + " →";
@@ -268,6 +294,7 @@ namespace AllIn.Game.LoopScene
             }
 
             Coin.Refresh();
+            Exchange.Refresh();
             Lotto.Refresh();
         }
     }

@@ -38,17 +38,38 @@ namespace AllIn.Harness.Sim
             }
         }
 
+        /// <summary>Day 1: sweep bank -> domestic (starts the 24h lock) -> overseas once unlocked. Shared by C/D/E
+        /// per DESIGN.md B11 ("Day 1 새벽에 즉시 옮기면 Day 2 같은 슬롯부터 거래 가능"). Idempotent per slot.</summary>
+        static void SweepToOverseas(Loop loop, ref bool deposited)
+        {
+            var d = loop.Data;
+            if (!deposited)
+            {
+                deposited = true;
+                loop.TransferBankToDomestic(d.bankCash);
+                return;
+            }
+            if (!loop.DomesticLocked && d.domesticCash > 0) loop.TransferDomesticToOverseas(d.domesticCash);
+        }
+
         sealed class OneShot25x : IPlayer
         {
-            bool _entered;
+            bool _deposited, _entered;
             public string Name => "C";
-            public string Description => "코인 25배 올인 롱 1회, 청산까지 보유, 이후 알바만";
+            public string Description => "코인 25배 올인 롱 1회, 청산까지 보유, 이후 알바만 (Day 1 은행→국내→해외로 자금 이동 후 진입)";
             public void PlaySlot(Loop loop)
             {
+                var d = loop.Data;
                 if (!_entered)
                 {
-                    _entered = true;
-                    if (!loop.Do(new CoinOpenAction(Direction.Long, 25, loop.Data.cash)).Ok) loop.Pass(); // opening takes the slot
+                    SweepToOverseas(loop, ref _deposited);
+                    if (!d.hasPosition && d.overseasCash > 0)
+                    {
+                        _entered = true;
+                        if (!loop.Do(new CoinOpenAction(Direction.Long, 25, d.overseasCash)).Ok) loop.Pass();
+                        return;
+                    }
+                    WorkOrRest(loop);
                     return;
                 }
                 if (loop.Data.hasPosition) loop.Pass();
@@ -58,16 +79,47 @@ namespace AllIn.Harness.Sim
 
         sealed class NightlyScalp10x : IPlayer
         {
+            bool _deposited;
             public string Name => "D";
-            public string Description => "코인 10배 올인, 매일 밤 진입(밤샘) → 다음 행동 가능 슬롯에서 종료 반복";
+            public string Description => "코인 10배 올인, 매일 밤 진입(밤샘) → 다음 행동 가능 슬롯에서 종료 반복. Day 1 즉시 입금, 이후 수익은 해외 지갑에 유지";
             public void PlaySlot(Loop loop)
             {
+                var d = loop.Data;
+                SweepToOverseas(loop, ref _deposited);
                 // Lost slots ("can't get up") are skipped by the Loop, so the first slot we see after a night open
                 // is the first one we can act in: dawn normally, afternoon when mental < 15.
-                if (loop.Data.hasPosition && loop.Do(CoinCloseAction.Instance).Ok) return;
-                if (loop.Data.slot == Slot.Night && !loop.Data.hasPosition && loop.Data.cash > 0 &&
-                    loop.Do(new CoinOpenAction(Direction.Long, 10, loop.Data.cash)).Ok) return;
+                if (d.hasPosition && loop.Do(CoinCloseAction.Instance).Ok) return;
+                if (d.slot == Slot.Night && !d.hasPosition && d.overseasCash > 0 &&
+                    loop.Do(new CoinOpenAction(Direction.Long, 10, d.overseasCash)).Ok) return;
                 loop.Pass();
+            }
+        }
+
+        /// <summary>Sim E (DESIGN.md B11/B5 §8, report-only): 25x all-in long -> liquidated -> deposit half the bank
+        /// balance -> once transferred, 100x all-in -> repeat, alba in between.</summary>
+        sealed class LiquidationChain : IPlayer
+        {
+            bool _deposited;
+            int _cyclesEntered;
+            public string Name => "E";
+            public string Description => "청산 체인: 25배 올인 롱 → 청산되면 은행 잔고 절반 입금 → 전송 가능해지면 100배 올인 → 반복, 알바 병행";
+            public void PlaySlot(Loop loop)
+            {
+                var d = loop.Data;
+                if (!_deposited) { SweepToOverseas(loop, ref _deposited); WorkOrRest(loop); return; }
+                if (!loop.DomesticLocked && d.domesticCash > 0) loop.TransferDomesticToOverseas(d.domesticCash);
+
+                if (!d.hasPosition && d.overseasCash > 0)
+                {
+                    int lev = _cyclesEntered == 0 ? 25 : 100;
+                    if (loop.Do(new CoinOpenAction(Direction.Long, lev, d.overseasCash)).Ok) { _cyclesEntered++; return; }
+                }
+                if (d.hasPosition) { loop.Pass(); return; }
+
+                if (!loop.DomesticLocked && d.domesticCash <= 0 && d.overseasCash <= 0 && d.bankCash > 0)
+                    loop.TransferBankToDomestic(d.bankCash / 2);
+
+                WorkOrRest(loop);
             }
         }
 
@@ -86,6 +138,12 @@ namespace AllIn.Harness.Sim
             public long LottoSpent, LottoWon;
             public int WorkedSlots;
             public int FirstLiquidationDay; // 0 = never
+            // B5 v0.3 liquidation chain (sim E report)
+            public int TailLiquidations;
+            public int WatchesShown;
+            public int LiquidationsDuringLock;
+            public int GhostFired;
+            public int GhostFiredEnhanced;
         }
 
         public static Outcome Play(IPlayer player, long seed)
@@ -109,6 +167,11 @@ namespace AllIn.Harness.Sim
             o.LottoSpent = s.lottoSpent;
             o.LottoWon = s.lottoWon;
             o.WorkedSlots = s.workedSlots;
+            o.TailLiquidations = s.tailLiquidations;
+            o.WatchesShown = s.watchesShown;
+            o.LiquidationsDuringLock = s.liquidationsDuringLock;
+            o.GhostFired = s.ghostFired;
+            o.GhostFiredEnhanced = s.ghostFiredEnhanced;
             return o;
         }
 
@@ -118,13 +181,14 @@ namespace AllIn.Harness.Sim
             "B" => new LottoAndJob(),
             "C" => new OneShot25x(),
             "D" => new NightlyScalp10x(),
+            "E" => new LiquidationChain(),
             _ => throw new ArgumentException(name),
         };
 
         /// <summary>Runs all players over seeds 1..runs, writes md/SIM_REPORT.md, returns true if every acceptance criterion holds.</summary>
         public static bool Run(int runs, string reportPath)
         {
-            var names = new[] { "A", "B", "C", "D" };
+            var names = new[] { "A", "B", "C", "D", "E" };
             var results = new Dictionary<string, List<Outcome>>();
             var descriptions = new Dictionary<string, string>();
             foreach (var n in names)
@@ -146,7 +210,7 @@ namespace AllIn.Harness.Sim
             sb.AppendLine("# SIM_REPORT — 30일 루프");
             sb.AppendLine();
             sb.AppendLine("> 생성: `dotnet run --project tools/dotnet-harness -- sim loop`. 손으로 고치지 말 것. 수치 출처는 md/DESIGN.md.");
-            sb.AppendLine($"> 시드 1..{runs}, 플레이어 4종.");
+            sb.AppendLine($"> 시드 1..{runs}, 플레이어 5종. E(청산 체인)는 수용 기준 없음 — 보고 전용.");
             sb.AppendLine();
             sb.AppendLine("## 수용 기준");
             sb.AppendLine();
@@ -191,6 +255,34 @@ namespace AllIn.Harness.Sim
             foreach (var (lo, hi) in new[] { (1, 1), (2, 3), (4, 7), (8, 14), (15, 30) })
                 sb.AppendLine($"| Day {lo}–{hi} | {Pct(results["C"].Count(o => o.FirstLiquidationDay >= lo && o.FirstLiquidationDay <= hi) / (double)runs)} |");
             sb.AppendLine($"| 청산 없음 | {Pct(results["C"].Count(o => o.FirstLiquidationDay == 0) / (double)runs)} |");
+            sb.AppendLine();
+            sb.AppendLine("## E 청산 체인 (B5 v0.3, 보고 전용 — 수용 기준 없음)");
+            sb.AppendLine();
+            {
+                var e = results["E"];
+                long liq = e.Sum(o => o.Liquidations);
+                long tail = e.Sum(o => o.TailLiquidations);
+                long watches = e.Sum(o => o.WatchesShown);
+                long lockLiq = e.Sum(o => o.LiquidationsDuringLock);
+                long ghosts = e.Sum(o => o.GhostFired);
+                long ghostsEnh = e.Sum(o => o.GhostFiredEnhanced);
+                double bankruptE = e.Count(o => o.Bankrupt) / (double)runs;
+                double tailRatio = liq > 0 ? tail / (double)liq : 0;
+                double watchSurvival = watches > 0 ? (watches - liq) / (double)watches : 0;
+                double lockLiqRatio = liq > 0 ? lockLiq / (double)liq : 0;
+                double ghostRate = liq > 0 ? ghosts / (double)liq : 0;
+                double enhancedRate = ghosts > 0 ? ghostsEnh / (double)ghosts : 0;
+
+                sb.AppendLine("| 항목 | 값 |");
+                sb.AppendLine("|---|---|");
+                sb.AppendLine($"| 런당 평균 청산 | {(liq / (double)runs).ToString("F2", CultureInfo.InvariantCulture)} |");
+                sb.AppendLine($"| 꼬리 청산 비율 (청산 중) | {Pct(tailRatio)} |");
+                sb.AppendLine($"| 관전 발생 수 (합계) / 생존 비율 | {watches:N0} / {Pct(watchSurvival)} |");
+                sb.AppendLine($"| 잠김 기간 중 발생한 청산 비율 | {Pct(lockLiqRatio)} |");
+                sb.AppendLine($"| 청산 대비 E8(본절) 발생률 | {Pct(ghostRate)} |");
+                sb.AppendLine($"| E8 중 강화 변형 비율 | {Pct(enhancedRate)} |");
+                sb.AppendLine($"| 30일 파산률 (총자산 < {Won(Rules.BankruptBelow)}) | {Pct(bankruptE)} |");
+            }
 
             Directory.CreateDirectory(Path.GetDirectoryName(reportPath));
             File.WriteAllText(reportPath, sb.ToString().Replace("\r\n", "\n"));

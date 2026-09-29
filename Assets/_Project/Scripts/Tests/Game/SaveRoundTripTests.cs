@@ -10,6 +10,7 @@ namespace AllIn.Game.Tests
         static Loop PlayABit(long seed)
         {
             var loop = Loop.NewRun(seed);
+            loop.Data.overseasCash = 3_000_000; // coin margin only comes from the overseas wallet (B5 v0.3)
             loop.Do(LottoBuyAction.Instance);
             loop.Do(new CoinOpenAction(Direction.Short, 25, 3_000_000));
             for (int i = 0; i < 13; i++) loop.Pass();

@@ -13,10 +13,21 @@ namespace AllIn.Core.Actions
 
         public ActionResult Execute(Loop loop)
         {
-            if (loop.Data.slot == Slot.Night)
+            var d = loop.Data;
+            if (d.slot == Slot.Night)
             {
-                loop.AddBody(Rules.SleepBody);
-                loop.AddMental(Rules.SleepMental);
+                if (d.peekedExchangeAtNight)
+                {
+                    // B5c "잠 못 듦": opened the coin/exchange screen during a locked night — half recovery.
+                    loop.AddBody(Rules.BadSleepBody);
+                    d.peekedExchangeAtNight = false;
+                }
+                else
+                {
+                    loop.AddBody(Rules.SleepBody);
+                    loop.AddMental(Rules.SleepMental);
+                }
+                d.tilted = false; // B5b: tilt ends at the next successful sleep, day-rest doesn't clear it
                 return ActionResult.Done(Texts.Slept);
             }
             loop.AddBody(Rules.RestBody);

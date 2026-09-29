@@ -23,7 +23,7 @@ namespace AllIn.Core.Actions
         {
             var d = loop.Data;
             bool mistake = d.mental < Rules.MistakeMentalBelow && loop.Rng.Chance(Rules.MistakeChance);
-            loop.AddCash(Rules.RestaurantWage);
+            loop.AddBank(Rules.RestaurantWage);
             loop.AddBody(-Rules.RestaurantBodyCost);
             loop.AddMental(-Rules.RestaurantMentalCost);
             d.stats.workedSlots++;

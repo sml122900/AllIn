@@ -54,7 +54,7 @@ namespace AllIn.Core
             Data.tickets.RemoveAll(t => t.drawDay == Data.day);
 
             if (ranks.Count == 0) return; // nothing bought for this draw: nothing to show
-            if (won > 0) AddCash(won);
+            if (won > 0) AddBank(won);
             Data.stats.lottoWon += won;
             Emit(new GameEvent
             {

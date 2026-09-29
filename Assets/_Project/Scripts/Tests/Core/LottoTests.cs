@@ -11,9 +11,9 @@ namespace AllIn.Core.Tests
         public void OnePurchase_Is5000Won_For5Games()
         {
             var loop = Loop.NewRun(21);
-            long cash = loop.Data.cash;
+            long cash = loop.Data.bankCash;
             Assert.IsTrue(loop.Do(LottoBuyAction.Instance).Ok);
-            Assert.AreEqual(cash - 5_000, loop.Data.cash);
+            Assert.AreEqual(cash - 5_000, loop.Data.bankCash);
             Assert.AreEqual(1, loop.Data.tickets.Count);
             var nums = loop.Data.tickets[0].numbers;
             Assert.AreEqual(30, nums.Length);

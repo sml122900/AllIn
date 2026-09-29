@@ -65,6 +65,41 @@ namespace AllIn.Core
         public const string CoinMargin = "증거금";
         public const string CoinLeverage = "레버리지";
 
+        // bank / wallet (B5 v0.3 — placeholder names, no real brands)
+        public const string WalletBank = "은행";
+        public const string WalletDomestic = "국내 거래소";
+        public const string WalletOverseas = "해외 지갑";
+        public const string WalletInTransit = "전송 중";
+        public const string WalletBadAmount = "그 금액은 안 된다.";
+        public const string WalletLocked = "아직 잠겨 있다.";
+        public const string WalletTransferSend = "전송";
+        public const string WalletDeposit = "입금";
+        public const string WalletWithdraw = "출금";
+        public static string WalletLockRemaining(int hours) => "약 " + hours + "시간 남음";
+        public const string WalletUnlocked = "전송 가능";
+        public const string WalletNoSleepFull = "잠 못 듦";
+
+        // B5a 관전 (watch)
+        public const string WatchTitle = "관전";
+        public const string WatchPray = "기도";
+        public const string WatchAddMargin = "증거금 추가";
+        public const string WatchStopLoss = "손절";
+        public const string WatchWorkLine = "손님이 부른다.";
+        public static string WatchPercentToLiq(double pct) => "청산까지 " + Fmt.Pct(pct, 0);
+        public const string WatchNoOverseasCash = "잔고 없음 — 입금 후 24시간 뒤 전송 가능";
+
+        // B5b 분노 (tilt)
+        public const string TiltBanner = "분노";
+        public static string TiltRecovery(int leverage, double pct) => leverage + "배 · " + Fmt.Pct(pct);
+        public const string TiltRecoveryTitle = "잃은 돈을 되찾으려면";
+        public const string TiltGoDeposit = "입금하러 가기";
+
+        // B5d E8 ghost (본절)
+        public const string E8Title = "본절";
+        public const string E8Body = "그때 팔지 않았다면.";
+        public const string E8Enhanced = "하필 지금.";
+        public static string E8IfAlive(long pnl) => "살아 있었다면 " + Fmt.SignedWon(pnl);
+
         // E1 / E2 / E3 liquidation
         public const string E1Title = "청산";
         public const string E1Body = "포지션이 강제 청산되었습니다.";
@@ -115,6 +150,9 @@ namespace AllIn.Core
         public const string E7Max = "최고 총자산";
         public const string E7Min = "최저 총자산";
         public const string E7Hope = "희망회로 발동";
+        public const string E7Prayers = "기도";
+        public const string E7RageBets = "분노 베팅";
+        public const string E7GhostMissed = "놓친 돈";
         public const string E7Scenes = "겪은 장면";
         public const string E7Again = "다시 전역일로";
         public static readonly string[] SceneNames = { "청산(낮)", "새벽 3시 청산 알림", "신세한탄", "희망회로", "로또 추첨", "이사" };
@@ -183,7 +221,6 @@ namespace AllIn.Core
         public static string HoldemEquity(double eq) => "에퀴티 " + (eq * 100).ToString("F0") + "%";
 
         // HUD
-        public const string Cash = "현금";
         public const string Assets = "총자산";
         public const string Body = "체력";
         public const string Mental = "멘탈";

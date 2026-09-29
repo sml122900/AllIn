@@ -15,14 +15,14 @@ namespace AllIn.Core.Actions
             var d = loop.Data;
             if (d.slot == Slot.Night) return Availability.No(Texts.LottoNotAtNight);
             if (d.lottoBoughtToday >= Rules.LottoMaxPerDay) return Availability.No(Texts.LottoDailyLimit);
-            if (d.cash < Rules.LottoPrice) return Availability.No(Texts.LottoNoCash);
+            if (d.bankCash < Rules.LottoPrice) return Availability.No(Texts.LottoNoCash);
             return Availability.Yes;
         }
 
         public ActionResult Execute(Loop loop)
         {
             var d = loop.Data;
-            loop.SpendCash(Rules.LottoPrice);
+            loop.SpendBank(Rules.LottoPrice);
             d.stats.lottoSpent += Rules.LottoPrice;
             d.lottoBoughtToday++;
             var t = new LottoTicket { serial = ++d.lottoTicketSerial, drawDay = Calendar.NextSaturday(d.day) };

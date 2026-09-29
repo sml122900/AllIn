@@ -21,6 +21,8 @@ namespace AllIn.Core.Tests
         static Loop Run(params long[] prices)
         {
             var loop = Loop.NewRun(100, new ScriptedPrices(prices));
+            loop.Data.overseasCash = Rules.StartingCash; // coin margin only comes from the overseas wallet (B5 v0.3); wallet/transfer mechanics have their own tests
+            loop.SubTickModel = LinearSubTickPath.Instance; // no tail risk here; SubTickTests.cs covers the sub-tick path itself
             loop.Data.pendingEvents.Clear();
             return loop;
         }
@@ -164,9 +166,10 @@ namespace AllIn.Core.Tests
         public void TotalAssets_IsCashPlusMarginPlusUnrealized()
         {
             var loop = Run(P0 * 101 / 100);
-            long before = loop.Data.cash;
+            long bank = loop.Data.bankCash;
+            long before = loop.Data.overseasCash;
             var p = Open(loop, Direction.Long, 10, 1_000_000); // tick lands on +1%
-            long expected = before - 1_000_000 + p.margin + 100_000; // 10M notional × 1%
+            long expected = bank + before - 1_000_000 + p.margin + 100_000; // 10M notional × 1%
             Assert.AreEqual(expected, loop.TotalAssets);
         }
 
@@ -174,7 +177,7 @@ namespace AllIn.Core.Tests
         public void ChasingLosses_Mental29_ForcesMinCommitQuarterOfCash_Mental30DoesNot()
         {
             var loop = Run();
-            loop.Data.cash = 1_000_000;
+            loop.Data.overseasCash = 1_000_000;
             loop.Data.mental = 29;
             Assert.AreEqual(250_000, loop.MinCommit);
             Assert.IsFalse(loop.Do(new CoinOpenAction(Direction.Long, 10, 249_999)).Ok);
@@ -235,6 +238,34 @@ namespace AllIn.Core.Tests
             Assert.AreEqual(25, CoinRules.SuggestedLeverage(25, 79));
             Assert.AreEqual(50, CoinRules.SuggestedLeverage(25, 80));
             Assert.AreEqual(100, CoinRules.SuggestedLeverage(100, 90));
+        }
+
+        [Test]
+        public void Tilt_StartsOnLiquidation_ClearsOnlyOnTheNextSuccessfulSleep()
+        {
+            var loop = Run();
+            var p = Open(loop, Direction.Long, 100, 5_000_000);
+            loop.PriceModel = new ScriptedPrices((long)(CoinRules.LiquidationPrice(p) * 0.99));
+            loop.Pass(); // liquidates
+            Assert.IsTrue(loop.Data.tilted);
+            Assert.AreEqual(5_000_000, loop.Data.lastLiquidationLoss);
+
+            loop.PriceModel = new ScriptedPrices();
+            while (loop.Data.slot != Slot.Night) { Assert.IsTrue(loop.Data.tilted, "day rest doesn't clear it"); loop.Pass(); }
+            loop.Pass(); // sleep
+            Assert.IsFalse(loop.Data.tilted);
+        }
+
+        [Test]
+        public void RageBet_CountsPositionsOpenedWhileTilted()
+        {
+            var loop = Run();
+            var p = Open(loop, Direction.Long, 100, 5_000_000);
+            loop.PriceModel = new ScriptedPrices((long)(CoinRules.LiquidationPrice(p) * 0.99));
+            loop.Pass(); // liquidates -> tilted
+            Assert.AreEqual(0, loop.Data.stats.rageBets);
+            Open(loop, Direction.Long, 100, loop.MinCommit); // mental dropped below 30 from the liquidation — MinCommit reflects "본전 생각"
+            Assert.AreEqual(1, loop.Data.stats.rageBets);
         }
 
         [Test]

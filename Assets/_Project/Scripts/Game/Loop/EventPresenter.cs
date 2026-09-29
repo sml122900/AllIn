@@ -62,6 +62,7 @@ namespace AllIn.Game.LoopScene
                 case EventIds.HopeCircuit: return HopeCircuit(e);
                 case EventIds.LottoDraw: return LottoDraw(e);
                 case EventIds.MoveRoom: return Popup(null, new[] { Texts.E6Move((Room)e.ints[0], (Room)e.ints[1]) }, Texts.Confirm);
+                case EventIds.Ghost: return Ghost(e);
                 case EventIds.Settlement: return Settlement();
                 case EventIds.Fired: return Popup(null, new[] { Texts.WorkMistake }, Texts.Confirm);
                 case EventIds.CantGetUp: return Popup(null, new[] { Texts.CantGetUp }, Texts.Confirm);
@@ -71,7 +72,7 @@ namespace AllIn.Game.LoopScene
 
         public void ConfirmNewLife()
         {
-            if (Busy) return;
+            if (Busy || _app.Watch.Busy) return;
             StartCoroutine(NewLifeRoutine());
         }
 
@@ -359,6 +360,22 @@ namespace AllIn.Game.LoopScene
             Destroy(scrim.gameObject);
         }
 
+        // ---------- E8: ghost (본절) ----------
+
+        IEnumerator Ghost(GameEvent e)
+        {
+            bool enhanced = e.ints.Length > 0 && e.ints[0] != 0;
+            var scrim = Scrim(new Color(0.05f, 0.05f, 0.08f, 0.85f));
+            var panel = Panel(scrim, 700, 360);
+            Ui.Text(panel, Texts.E8Title, 34, Palette.Dim, TextAlignmentOptions.Center, true).rectTransform.Place(0, 1, 1, 1, 20, -80, 20, 24);
+            Ui.Text(panel, enhanced ? Texts.E8Enhanced : Texts.E8Body, 24, align: TextAlignmentOptions.Center).rectTransform.Place(0, 1, 1, 1, 20, -140, 20, 90);
+            Ui.Text(panel, "진입가 " + Fmt.Won(e.amount2), 22, Palette.Dim, TextAlignmentOptions.Center).rectTransform.Place(0, 1, 1, 1, 20, -190, 20, 150);
+            Ui.Text(panel, Texts.E8IfAlive(e.amount3), 30, e.amount3 >= 0 ? Palette.Up : Palette.Down, TextAlignmentOptions.Center, true)
+              .rectTransform.Place(0, 1, 1, 1, 20, -250, 20, 190);
+            yield return WaitButton(panel, Texts.Confirm);
+            Destroy(scrim.gameObject);
+        }
+
         // ---------- E7: settlement ----------
 
         IEnumerator Settlement()
@@ -379,6 +396,7 @@ namespace AllIn.Game.LoopScene
                 Row(Texts.E7LottoSpent, Fmt.Won(s.lottoSpent)) + "   " + Row(Texts.E7LottoWon, Fmt.Won(s.lottoWon)),
                 Row(Texts.E7Max, Fmt.Won(s.maxAssets)) + "   " + Row(Texts.E7Min, Fmt.Won(s.minAssets)),
                 Row(Texts.E7Hope, s.hopeCircuits + "회"),
+                Row(Texts.E7Prayers, s.prayers + "회") + "   " + Row(Texts.E7RageBets, s.rageBets + "회") + "   " + Row(Texts.E7GhostMissed, Fmt.Won(s.ghostMissedMoney)),
             };
             Ui.Text(panel, string.Join("\n", rows), 24, align: TextAlignmentOptions.TopLeft).rectTransform.Place(0, 1, 1, 1, 40, -350, 40, 90);
 

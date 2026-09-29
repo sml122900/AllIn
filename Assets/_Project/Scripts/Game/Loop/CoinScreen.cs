@@ -13,11 +13,12 @@ namespace AllIn.Game.LoopScene
     {
         LoopApp _app;
         GameObject _root;
-        TextMeshProUGUI _price, _change, _positionInfo, _commitInfo, _reason;
+        TextMeshProUGUI _price, _change, _positionInfo, _commitInfo, _reason, _recoveryText;
         Image[] _bars;
+        Image _tiltTint;
         RectTransform _openForm, _positionPanel;
         Ui.Btn[] _dirButtons, _levButtons;
-        Ui.Btn _openButton, _closeButton;
+        Ui.Btn _openButton, _closeButton, _addMarginButton, _goDepositButton;
         Slider _slider;
         Direction _dir = Direction.Long;
         int _leverage = Rules.DefaultLeverage;
@@ -38,6 +39,8 @@ namespace AllIn.Game.LoopScene
             _root = canvas.gameObject;
             Ui.Image(canvas.transform, "Scrim", Palette.Scrim, raycast: true);
             var panel = Ui.Image(canvas.transform, "Panel", Palette.Panel, raycast: true).rectTransform.Box(0.5f, 0.5f, 1000, 640);
+            _tiltTint = Ui.Image(panel, "TiltTint", new Color(0.6f, 0.05f, 0.05f, 0));
+            _tiltTint.rectTransform.Place(0, 0, 1, 1);
 
             var title = Ui.Text(panel, Texts.CoinTitle, 26, Palette.Dim, bold: true);
             title.rectTransform.Place(0, 1, 1, 1, 30, -60, 30, 16);
@@ -63,7 +66,9 @@ namespace AllIn.Game.LoopScene
             _positionInfo = Ui.Text(_positionPanel, "", 24, align: TextAlignmentOptions.TopLeft);
             _positionInfo.rectTransform.Place(0, 0, 0.7f, 1, 0, 0, 0, 0);
             _closeButton = Ui.Button(_positionPanel, Texts.CoinClose + " →", OnClose, 30);
-            _closeButton.Rect.Place(0.72f, 0.35f, 1, 0.75f);
+            _closeButton.Rect.Place(0.72f, 0.5f, 1, 0.9f);
+            _addMarginButton = Ui.Button(_positionPanel, Texts.WatchAddMargin, OnAddMargin, 22);
+            _addMarginButton.Rect.Place(0.72f, 0.2f, 1, 0.45f);
 
             // open form
             _openForm = Ui.Rect(panel, "OpenForm").Place(0, 0, 1, 1, 30, 30, 30, 310);
@@ -90,7 +95,11 @@ namespace AllIn.Game.LoopScene
             _commitInfo.rectTransform.Place(0, 0, 0.7f, 1, 0, 0, 0, 140);
             _openButton = Ui.Button(_openForm, Texts.CoinOpen + " →", OnOpen, 30);
             _openButton.Rect.Place(0.72f, 0.05f, 1, 0.45f);
+            _goDepositButton = Ui.Button(_openForm, Texts.TiltGoDeposit, () => { Hide(); _app.Exchange.Show(); }, 24);
+            _goDepositButton.Rect.Place(0.72f, 0.55f, 1, 0.95f);
 
+            _recoveryText = Ui.Text(panel, "", 18, Palette.Down, TextAlignmentOptions.Center);
+            _recoveryText.rectTransform.Place(0, 0, 1, 0, 30, 34, 30, -60);
             _reason = Ui.Text(panel, "", 20, Palette.Accent, TextAlignmentOptions.Center);
             _reason.rectTransform.Place(0, 0, 1, 0, 30, 4, 30, -30);
 
@@ -99,11 +108,21 @@ namespace AllIn.Game.LoopScene
 
         public void Show()
         {
-            if (_app.Events.Busy) return;
+            if (_app.Events.Busy || _app.Watch.Busy) return;
             _root.SetActive(true);
-            _leverage = _app.Loop.SuggestedLeverage; // hope circuit nudges the default one step up
+            var d = _app.Loop.Data;
             _silentSlider = true;
-            _slider.value = 0.5f;
+            if (d.tilted && !d.hasPosition)
+            {
+                // B5b: tilt defaults leverage to max and the slider to 100% of the overseas wallet — still changeable.
+                _leverage = Rules.TiltDefaultLeverage;
+                _slider.value = 1f;
+            }
+            else
+            {
+                _leverage = _app.Loop.SuggestedLeverage; // hope circuit nudges the default one step up
+                _slider.value = 0.5f;
+            }
             _silentSlider = false;
             if (_app.Loop.OnCoinScreenOpened() != null) _app.Save(); // E4 queued; the presenter shows it on top
             Refresh();
@@ -126,10 +145,20 @@ namespace AllIn.Game.LoopScene
             else _reason.text = r.Message;
         }
 
+        void OnAddMargin()
+        {
+            var loop = _app.Loop;
+            long amount = (long)Math.Round(loop.Data.overseasCash * 0.25);
+            var r = loop.AddMarginToPosition(amount);
+            _reason.text = r.Ok ? "" : r.Reason;
+            _app.Save();
+            Refresh();
+        }
+
         long Commit()
         {
             var loop = _app.Loop;
-            long cash = loop.Data.cash;
+            long cash = loop.Data.overseasCash;
             if (cash <= 0) return 0;
             double minFrac = Math.Min(1.0, loop.MinCommit / (double)cash);
             double frac = minFrac + (1 - minFrac) * _slider.value;
@@ -152,6 +181,8 @@ namespace AllIn.Game.LoopScene
             }
             DrawChart(d);
 
+            _tiltTint.color = new Color(0.6f, 0.05f, 0.05f, d.tilted ? 0.35f : 0f);
+
             bool has = d.hasPosition;
             _positionPanel.gameObject.SetActive(has);
             _openForm.gameObject.SetActive(!has);
@@ -163,13 +194,14 @@ namespace AllIn.Game.LoopScene
                 long u = loop.UnrealizedPnl;
                 _positionInfo.text =
                     (p.direction == Direction.Long ? Texts.CoinLong : Texts.CoinShort) + " x" + p.leverage + "\n" +
-                    Texts.CoinMargin + " " + Fmt.Won(p.margin) + "  (투입 " + Fmt.Won(p.committed) + ")\n" +
+                    Texts.CoinMargin + " " + Fmt.Won(CoinRules.TotalMargin(p)) + "  (투입 " + Fmt.Won(p.committed) + (p.addedMargin > 0 ? " +" + Fmt.Won(p.addedMargin) : "") + ")\n" +
                     "진입가 " + Fmt.Won(p.entryPrice) + "\n" +
                     Texts.CoinLiqPrice + " <color=" + Ui.Hex(Palette.Down) + ">" + Fmt.Won(CoinRules.LiquidationPrice(p)) + "</color>\n" +
                     Texts.CoinUnrealized + " <color=" + Ui.Hex(u >= 0 ? Palette.Up : Palette.Down) + ">" + Fmt.SignedWon(u) + "</color>";
                 var can = loop.Check(CoinCloseAction.Instance);
                 _closeButton.Interactable = can.Ok;
                 if (!can.Ok && !string.IsNullOrEmpty(can.Reason)) _reason.text = can.Reason;
+                _addMarginButton.Interactable = d.overseasCash > 0;
             }
             else
             {
@@ -177,7 +209,18 @@ namespace AllIn.Game.LoopScene
                 _dirButtons[1].SetOn(_dir == Direction.Short);
                 for (int i = 0; i < _levButtons.Length; i++) _levButtons[i].SetOn(Rules.Leverages[i] == _leverage);
                 RefreshCommitInfo();
+                _goDepositButton.Button.gameObject.SetActive(d.tilted && d.overseasCash <= 0);
             }
+
+            if (d.tilted)
+            {
+                int lev = has ? d.position.leverage : _leverage;
+                string rateText = d.overseasCash > 0
+                    ? Texts.TiltRecovery(lev, CoinRules.RecoveryRateNeeded(d.lastLiquidationLoss, d.overseasCash, lev))
+                    : "—"; // no overseas balance to trade with yet
+                _recoveryText.text = Texts.TiltRecoveryTitle + " " + Fmt.Won(d.lastLiquidationLoss) + " — " + rateText;
+            }
+            else _recoveryText.text = "";
         }
 
         void RefreshCommitInfo()
@@ -193,7 +236,7 @@ namespace AllIn.Game.LoopScene
             var preview = CoinRules.Open(_dir, _leverage, commit, loop.Data.price, loop.AbsSlot);
             string chasing = loop.Data.mental < Rules.ChasingLossesBelow ? "\n<color=" + Ui.Hex(Palette.Accent) + ">" + Texts.CoinBelowMin + "</color>" : "";
             _commitInfo.text =
-                "투입 " + Fmt.Won(commit) + "  (현금의 " + Fmt.Pct(commit / (double)loop.Data.cash, 0) + ")\n" +
+                "투입 " + Fmt.Won(commit) + "  (" + Texts.WalletOverseas + "의 " + Fmt.Pct(commit / (double)loop.Data.overseasCash, 0) + ")\n" +
                 "명목 " + Fmt.Won(CoinRules.Notional(preview)) + " · 진입 수수료 " + Fmt.Won((long)CoinRules.EntryFee(preview)) + "\n" +
                 Texts.CoinLiqPrice + " " + Fmt.Won(CoinRules.LiquidationPrice(preview)) + chasing;
             _openButton.Interactable = loop.Check(new CoinOpenAction(_dir, _leverage, commit)).Ok;

@@ -78,5 +78,18 @@ namespace AllIn.Core
 
         // B10 end
         public const long BankruptBelow = 5_000;
+
+        // B5 v0.3 — liquidation chain: wallets, sub-tick path, watch/tilt/lock/ghost
+        public const int SubTicksPerSlot = 12;
+        public static readonly double SubTickScale = CoinTickScale / System.Math.Sqrt(SubTicksPerSlot);
+        public const double WatchLossRatio = 0.7;         // loss / (margin+addedMargin) that triggers the watch scene
+        public const int DomesticLockSlots = 5;            // 24h, re-set (not extended) on every bank->domestic deposit
+        public const int TransferDelaySlots = 1;            // overseas->domestic, domestic->bank
+        public const int GhostTrackSlots = 50;              // 10 days
+        public const int GhostEnhancedWindowSlots = 5;      // "강화 변형": E8 within this many slots of a domestic->overseas arrival
+        public const int GhostMental = 15;
+        public const int GhostMentalEnhanced = 25;
+        public const int TiltDefaultLeverage = 100;
+        public const int BadSleepBody = 15;                 // half of SleepBody; mental stays +0
     }
 }

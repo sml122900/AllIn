@@ -13,14 +13,23 @@ namespace AllIn.Core
         public long seed;
         public int[] marketRngState = new int[4]; // coin price path only, so strategies see the same market
         public int[] rngState = new int[4];       // everything else (lotto numbers, job mistakes, flavor)
+        public int[] subTickRngState = new int[4]; // sub-tick decomposition of the slot's price move, separate from marketRngState
 
-        public long cash;
         public int body;
         public int mental;
         public int day;
         public Slot slot;
         public Room room;
         public bool finished;
+
+        // money (B5 v0.3): three pools, no debt. Bank <- wages/rent/food/lotto. Overseas <- futures margin only.
+        public long bankCash;
+        public long domesticCash;
+        public long overseasCash;
+        public int domesticLockUntilAbsSlot = -1;              // absolute slot; -1 = unlocked. Re-set (not extended) on each deposit.
+        public int lastOverseasArrivalAbsSlot = -1;             // last time a domestic->overseas transfer landed (B5d "강화 변형" window)
+        public bool peekedExchangeAtNight;                      // opened coin/exchange screen at night while locked -> "잠 못 듦" this night
+        public List<PendingTransfer> pendingTransfers = new List<PendingTransfer>();
 
         // coin
         public long price;                                  // whole won
@@ -31,6 +40,9 @@ namespace AllIn.Core
         public bool hasLastWin;
         public LastWin lastWin = new LastWin();
         public int hopeShownDay;
+        public bool tilted;              // B5b: from liquidation until the next successful sleep
+        public long lastLiquidationLoss; // committed + addedMargin lost, for the tilt recovery calculator
+        public List<Ghost> ghosts = new List<Ghost>(); // B5d: tracked liquidated positions, up to 50 slots each
 
         // lotto
         public List<LottoTicket> tickets = new List<LottoTicket>();
@@ -58,8 +70,34 @@ namespace AllIn.Core
         public int leverage;
         public long committed;      // C: cash taken when opening
         public long margin;         // M = C - entry fee
+        public long addedMargin;    // ΣA added mid-slot (B5a); notional/quantity stay fixed, only the liquidation price moves
         public long entryPrice;     // quantity is derived: CoinRules.Quantity
         public int openedAtSlot;    // absolute slot
+        public int watchShownAtSlot = -1; // absolute slot the watch scene last fired for this position (once per slot)
+    }
+
+    public enum TransferKind { DomesticToOverseas, OverseasToDomestic, DomesticToBank }
+
+    [Serializable]
+    public class PendingTransfer
+    {
+        public long amount;
+        public TransferKind kind;
+        public int arrivalAbsSlot;
+    }
+
+    [Serializable]
+    public class Ghost
+    {
+        public Direction direction;
+        public int leverage;
+        public long committed;
+        public long addedMargin;
+        public long entryPrice;
+        public int liqAbsSlot;
+        public int expiryAbsSlot;
+        public bool enhanced;
+        public long peakFavorablePnl;
     }
 
     [Serializable]
@@ -93,6 +131,16 @@ namespace AllIn.Core
         public List<string> eventsSeen = new List<string>();
         public int timesFired;
 
+        // B5 v0.3 liquidation chain
+        public int prayers;
+        public int rageBets;
+        public long ghostMissedMoney;
+        public int watchesShown;
+        public int tailLiquidations;         // liquidated mid-path though the slot's close price alone wouldn't have
+        public int liquidationsDuringLock;    // liquidated while the domestic->overseas transfer was locked
+        public int ghostFired;
+        public int ghostFiredEnhanced;
+
         // schedule bookkeeping (tests / sims)
         public int rentPaid;
         public int foodPaid;
@@ -124,6 +172,7 @@ namespace AllIn.Core
         public const string LottoDraw = "E5";
         public const string MoveRoom = "E6";
         public const string Settlement = "E7";
+        public const string Ghost = "E8";
         public const string Fired = "FIRED";
         public const string CantGetUp = "CANT_GET_UP";
 

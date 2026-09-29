@@ -27,8 +27,21 @@ namespace AllIn.Game
             string path = FilePath;
             string tmp = path + ".tmp";
             File.WriteAllText(tmp, ToJson(data));
-            if (File.Exists(path)) File.Replace(tmp, path, null);
-            else File.Move(tmp, path);
+            // File.Replace/Move can throw IOException on Windows if something (AV, indexer) briefly holds the
+            // destination — retry a few times before giving up; a save every slot means the next one recovers anyway.
+            for (int attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    if (File.Exists(path)) File.Replace(tmp, path, null);
+                    else File.Move(tmp, path);
+                    return;
+                }
+                catch (IOException) when (attempt < 3)
+                {
+                    System.Threading.Thread.Sleep(20);
+                }
+            }
         }
 
         public static SaveData Load()

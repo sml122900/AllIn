@@ -24,7 +24,7 @@ namespace AllIn.Core.Actions
             var d = loop.Data;
             if (d.hasPosition) return Availability.No(Texts.CoinAlreadyOpen);
             if (!CoinRules.IsValidLeverage(Leverage)) return Availability.No(Texts.CoinBadLeverage);
-            if (d.cash <= 0 || Commit > d.cash || Commit <= 0) return Availability.No(Texts.CoinNoCash);
+            if (d.overseasCash <= 0 || Commit > d.overseasCash || Commit <= 0) return Availability.No(Texts.CoinNoCash);
             if (Commit < loop.MinCommit) return Availability.No(Texts.CoinBelowMin);
             return Availability.Yes;
         }
@@ -32,10 +32,11 @@ namespace AllIn.Core.Actions
         public ActionResult Execute(Loop loop)
         {
             var d = loop.Data;
-            loop.SpendCash(Commit);
+            loop.SpendOverseas(Commit);
             d.position = CoinRules.Open(Direction, Leverage, Commit, d.price, loop.AbsSlot);
             d.hasPosition = true;
             d.lastLeverage = Leverage;
+            if (d.tilted) d.stats.rageBets++;
             return ActionResult.Done(Texts.CoinOpen + " " + (Direction == Direction.Long ? Texts.CoinLong : Texts.CoinShort) +
                                      " x" + Leverage + " " + Fmt.Won(Commit));
         }
@@ -59,20 +60,7 @@ namespace AllIn.Core.Actions
 
         public ActionResult Execute(Loop loop)
         {
-            var d = loop.Data;
-            var p = d.position;
-            long proceeds = CoinRules.CloseProceeds(p, d.price);
-            long realized = proceeds - p.committed;
-            d.hasPosition = false;
-            loop.AddCash(proceeds);
-            d.stats.coinRealized += realized;
-            loop.AddMental(CoinRules.CloseMentalDelta(realized, loop.TotalAssets));
-            if (realized > 0)
-            {
-                d.hasLastWin = true;
-                d.lastWin = new LastWin { realized = realized, committed = p.committed, heldTicks = loop.AbsSlot - p.openedAtSlot };
-                loop.TryHopeAfterWin();
-            }
+            long realized = loop.ClosePositionAt(loop.Data.price);
             return ActionResult.Done(Texts.CoinClose + " " + Fmt.SignedWon(realized));
         }
     }

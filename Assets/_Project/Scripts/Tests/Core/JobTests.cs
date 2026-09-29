@@ -17,10 +17,10 @@ namespace AllIn.Core.Tests
         public void Shift_Pays51600_CostsBody12Mental4_AndEndsTheSlot()
         {
             var loop = AtEvening();
-            long cash = loop.Data.cash;
+            long cash = loop.Data.bankCash;
             int body = loop.Data.body, mental = loop.Data.mental;
             Assert.IsTrue(loop.Do(WorkRestaurantAction.Instance).Ok);
-            Assert.AreEqual(cash + 51_600, loop.Data.cash);
+            Assert.AreEqual(cash + 51_600, loop.Data.bankCash);
             Assert.AreEqual(Slot.Night, loop.Data.slot);
             Assert.AreEqual(body - 12, loop.Data.body);
             Assert.AreEqual(mental - 4, loop.Data.mental);

@@ -4,12 +4,12 @@ _Single session-to-session context doc. Newest state at top._
 
 ## Current
 - Branch: `feat/loop-proto`. Remote `origin` = https://github.com/sml122900/AllIn (private). `main` and `feat/loop-proto` pushed 2026-09-25.
-- Stage: **Part B Stages 1–7 done** (slot model + lotto tax revised 2026-09-25). Part B Stage 8 (human play) pending — observations come from the user separately.
-- Unity compile: **verified** 2026-09-25 via unity-mcp (editor was open): 0 errors, **140/140 EditMode tests** (71 Core + 67 Holdem + 2 Game). Win64 build succeeds; loop and hold'em dev captures run with 0 exceptions.
+- Stage: **코인 선물 개편 v0.3 "청산 체인" done** (2026-09-29) — see Log. Part B Stage 8 (human play, now on top of v0.3) and Part C (hold'em) human play are both still pending — observations come from the user separately.
+- Unity compile: **verified** 2026-09-29 via unity-mcp (editor open): 0 errors, **163/163 EditMode tests** (161 Core+Holdem via the harness + 2 Game). Win64 build succeeds; dev capture ran a full 30-day scripted playthrough with 0 exceptions and screenshots of all four new scenes (관전/분노/24시간 룰/본절).
 
 ## Next
-- **Part B Stage 8 (user):** open `Assets/_Project/Scenes/Loop.unity`, press Play (or run `Builds/Win64/AllIn.exe`), play one 30-day run. Record observations below — no number changes (tuning is the user's call). Target 10–15 min.
-- Part C (hold'em): **C1–C7 done + C7-reply decisions A–E applied (2026-09-25); stopped for human play (loop Stage 8 and hold'em C7).** To play: open `Assets/_Project/Scenes/Holdem.unity` → Play (or run the build and load the Holdem scene — the build starts in Loop; see note), pick Kind / study level / seed → 시작. Target Pub 8–12 min. Observations go below; numbers stay as they are.
+- **Human play (user), v0.3 on top of Stage 8 + C7:** open `Assets/_Project/Scenes/Loop.unity`, press Play (or run `Builds/Win64/AllIn.exe`), play one 30-day run. On Day 1, move money 은행 → 국내 거래소 → 해외 지갑 (새 "거래소" 버튼) before the first coin trade — otherwise coin is unfunded. Watch for: the 관전 scene at the liquidation edge, 분노 tint + recovery calculator after a liquidation, the 24시간 잠김 countdown, and 본절(E8) if price recovers within 10 days. Record observations below — no number changes (tuning is the user's call). Target 10–15 min.
+- Part C (hold'em): **C1–C7 done + C7-reply decisions A–E applied (2026-09-25); still stopped for human play.** To play: open `Assets/_Project/Scenes/Holdem.unity` → Play (or run the build and load the Holdem scene — the build starts in Loop; see note), pick Kind / study level / seed → 시작. Target Pub 8–12 min. Observations go below; numbers stay as they are.
 
 ## Decisions (confirmed by the user 2026-09-25)
 - **1 action = 1 slot.** Job, rest/sleep, coin open, coin close each consume the slot. Free: looking at the coin screen, lotto purchase (not at night), popups. Opening/closing at night = all-nighter (no recovery, mental −5). The "can't open and close in the same slot" rule is a consequence, not a separate rule. E4 still fires on entering the coin screen (viewing is free). Sim D opens at night and closes in the first slot it can act in.
@@ -61,6 +61,17 @@ _Single session-to-session context doc. Newest state at top._
 - E3 blocks input with a near-invisible scrim and darkens only the room area; the HUD stays readable. Check it reads as "forced".
 - Log panel (right) overlaps the placeholder room art. Fine for placeholders.
 - E5 shows at most 8 games; the rest are summarized ("외 N게임").
+- v0.3: the watch scene always animates the full 12 sub-ticks from the top (not just from the trigger point) — an intentional read of the spec's "실시간 약 8초" timing, but check it doesn't feel slow once every liquidation-edge slot pays the full 8s.
+- v0.3: recovery-calculator/margin-add UI is fixed-fraction buttons (25%/50%/전액, or a flat 25%-of-wallet margin add), not a slider — simplest thing that works within the time budget; a slider would read closer to the coin screen's existing commit slider if picked up later.
+- v0.3: the exchange screen adds a 5th bottom-bar button ("은행") next to 코인 — check the 5-way split still reads fine at 1280×720 on a real screen (the dev-capture screenshots look fine but that's not a substitute for eyes on the actual build).
+- v0.3 known rough edge: in the CoinScreen open form, when tilted **and** the overseas wallet is empty **and** mental < 30, the "입금하러 가기" button crowds the leverage row (x50/x100 partly covered) — both still clickable, just visually cramped. Low priority (placeholder-tier UI, narrow edge case) but worth a real layout pass if it bothers you in play.
+
+## Sim E observations (청산 체인, 1,000 runs — report-only, no acceptance criteria, no numbers changed)
+- 런당 평균 청산 7.56회, 30일 파산률 3.8%. 중앙값 163,082원 — 체인을 반복할수록 수수료(왕복 10%@100배)가 누적되어 대부분 잃는다.
+- 꼬리 청산 비율 94.9%: 100배에서는 거의 매번 종가가 아니라 경로 중간에서 청산된다 — 서브틱 분해가 의도대로 작동.
+- 관전 발생 9,727회, 생존율 22.3%: 관전까지 간 슬롯 중 약 4/5는 그대로 청산으로 이어진다(70%→90% 손실까지 거리가 짧음, 특히 고배율).
+- 청산의 31.2%가 잠김(24시간 룰) 기간 중 발생 — "돈이 묶인 채 청산 알림만 보는" 체인의 핵심 장면이 자연 발생함을 확인.
+- 청산 대비 E8(본절) 78.8%, 그중 강화 변형 24.8% — 가격이 평균 회귀하는 시뮬레이션 특성상 높게 나옴(변동성 상수 불변, 청산가가 진입가에 가까운 고배율 특성).
 
 ## Sim observations (Stage 5, seeds 1..1000 — observations only, no numbers changed)
 - A exact 20,738,000 every run. C liquidated 81.8% (margin over the 80% bar is thin — any volatility tweak could flip it). D median 10.1M (PASS).
@@ -68,6 +79,7 @@ _Single session-to-session context doc. Newest state at top._
 - C when not liquidated has p90 ≈ 110M (25x long + slight upward drift of exp(t) prices).
 
 ## Log
+- 2026-09-29 코인 선물 개편 v0.3 "청산 체인": DESIGN.md B5 rewrite (돈의 세 칸, 서브틱 경로, 관전/분노/24시간 룰/본절) + intent quote. Core: `bankCash`/`domesticCash`/`overseasCash` + `PendingTransfer`/lock (`LoopWallet.cs`), 3rd RNG stream (`_subTick`) + `StudentTSubTickPath`/`LinearSubTickPath`, `SubTickWalk` (`SlotAdvance.cs`) — `Loop.BeginWatchableAction`/`FinishWatch` let the watch scene pause mid-slot and call `AddMargin`/`StopLoss`/`Pray` for real, while `Do()` stays byte-identical for every headless caller (sims/tests always auto-run to completion — "기도 0회" baseline verified by test). Tilt (`Data.tilted`, clears on next sleep), ghost tracking (50-slot window, E8, enhanced variant), "잠 못 듦" half-sleep. 23 new Core tests (161 total, was 141) + sim C/D rewritten to fund via the wallet chain + new report-only sim E ("청산 체인"). Game: `ExchangeScreen` (3 tabs), `WatchScreen` (live sub-tick animation + 기도/증거금추가/손절), `CoinScreen` tilt tint + recovery calculator + margin-add, E8 popup + settlement rows (기도/분노 베팅/놓친 돈), `DevCapture` scripts all four new scenes. Found via capture: `WatchScreen`'s margin/stop-loss buttons and `ExchangeScreen`'s 25%/50%/전액 buttons both had inverted `Place()` point-anchor offsets (negative/oversized rects — the exchange one was 190px tall and silently covered the lock-countdown text sitting above it) — both fixed with `Box()`; tilt recovery calculator showed "Infinity%" at 0 해외 잔고 — now shows "—"; the domestic-lock screenshot was capturing the wrong tab — added `ExchangeScreen.SelectTab`; `SaveIO.Save()`'s `File.Replace` threw a transient `IOException` twice independently (not caused by tooling — Windows AV/indexer lock contention) and silently killed the coroutine — added a 3-retry with backoff. Known rough edge left as-is: tilted + broke + mental<30 crowds the "입금하러 가기" button against the leverage row. Unity: 163/163 EditMode tests, 0 compile errors, Win64 build clean, `-allinShots` full 30-day run with 0 exceptions after fixes.
 - 2026-09-25 C7-reply: A all-in reveal (engine `Reveal` events + 3 tests), C tempo (instant replay of hands the hero folded, hand log, 빠르게 toggle), B `SkillMeasure` in `sim holdem`, E settings. Harness 141 tests.
 - C6–C7: Holdem.unity code-built table, action bar (fold / check-call / presets ½ ⅔ pot all-in + slider), HUD 0–4, effects, boot menu, result screen; `-allinHoldemShots` dev capture. Found via capture: result overlay stayed up when a new tournament started without the menu (fixed).
 - C1–C5 (hold'em): bitmask 7-card evaluator (cross-checked vs brute force on 20k hands), HandState betting engine, Tournament step machine (re-entry, Main field/refills, bubble, bad beats), Brain (169 ranks generated by `gen169`, push/fold table, MC postflop, 4 personalities), `sim holdem` → md/SIM_HOLDEM.md. 138 harness tests.

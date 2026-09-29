@@ -39,5 +39,33 @@ namespace AllIn.Core.Tests
             loop.Pass();
             Assert.AreEqual(before + 3, loop.Data.priceHistory.Count, "night→dawn, dawn→morning, morning→afternoon");
         }
+
+        [Test]
+        public void BadSleep_HalvesBodyRecovery_NoMentalGain_WhenTheLockedExchangeScreenWasOpenedThatNight()
+        {
+            var loop = Loop.NewRun(900);
+            Assert.IsTrue(loop.TransferBankToDomestic(1_000_000).Ok); // starts the 24h lock
+            while (loop.Data.slot != Slot.Night) loop.Pass();
+            Assert.IsTrue(loop.DomesticLocked);
+            loop.NoteExchangeScreenOpened();
+            loop.Data.body = 50;
+            int body = loop.Data.body, mental = loop.Data.mental;
+            loop.Pass(); // sleep
+            Assert.AreEqual(body + Rules.BadSleepBody, loop.Data.body);
+            Assert.AreEqual(mental, loop.Data.mental, "mental +0");
+        }
+
+        [Test]
+        public void NormalSleep_WhenLockedButTheScreenWasNeverOpened_StillFullRecovery()
+        {
+            var loop = Loop.NewRun(901);
+            Assert.IsTrue(loop.TransferBankToDomestic(1_000_000).Ok);
+            while (loop.Data.slot != Slot.Night) loop.Pass();
+            loop.Data.body = 50;
+            int body = loop.Data.body, mental = loop.Data.mental;
+            loop.Pass();
+            Assert.AreEqual(body + Rules.SleepBody, loop.Data.body);
+            Assert.AreEqual(mental + Rules.SleepMental, loop.Data.mental);
+        }
     }
 }

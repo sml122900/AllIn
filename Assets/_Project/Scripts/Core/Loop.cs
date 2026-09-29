@@ -17,16 +17,22 @@ namespace AllIn.Core
         /// <summary>Everything else: lotto numbers, job mistakes, flavor picks.</summary>
         public IRng Rng => _rng;
 
+        /// <summary>Sub-tick decomposition of the slot's price move (B5 v0.3), separate from the market stream.</summary>
+        public IRng SubTickRng => _subTick;
+
         public IPriceModel PriceModel { get; set; } = StudentTPriceModel.Instance;
+        public ISubTickPath SubTickModel { get; set; } = StudentTSubTickPath.Instance;
 
         readonly Xoshiro128 _market;
         readonly Xoshiro128 _rng;
+        readonly Xoshiro128 _subTick;
 
-        Loop(SaveData data, Xoshiro128 market, Xoshiro128 rng)
+        Loop(SaveData data, Xoshiro128 market, Xoshiro128 rng, Xoshiro128 subTick)
         {
             Data = data;
             _market = market;
             _rng = rng;
+            _subTick = subTick;
         }
 
         public static Loop NewRun(long seed, IPriceModel priceModel = null)
@@ -40,16 +46,16 @@ namespace AllIn.Core
                 mental = Rules.MentalStart,
                 price = Rules.CoinStartPrice,
             };
-            var loop = new Loop(d, new Xoshiro128((ulong)seed), new Xoshiro128((ulong)seed ^ 0x5EED5EED5EEDUL));
+            var loop = new Loop(d, new Xoshiro128((ulong)seed), new Xoshiro128((ulong)seed ^ 0x5EED5EED5EEDUL), new Xoshiro128((ulong)seed ^ 0x5AB7A11C5AB7A11CUL));
             if (priceModel != null) loop.PriceModel = priceModel;
             d.priceHistory.Add(d.price);
 
             loop.Emit(new GameEvent { id = EventIds.Opening });
-            d.cash = Rules.StartingCash;
-            loop.PayFixed(Rules.Rent);
+            d.bankCash = Rules.StartingCash;
+            loop.PayFixedFromBank(Rules.Rent);
             d.stats.rentPaid++;
             loop.Log(Texts.RentPaid);
-            d.room = Calendar.RoomFor(d.cash);
+            d.room = Calendar.RoomFor(loop.TotalCashLikeForRoom);
             loop.Emit(new GameEvent { id = EventIds.FirstPopup });
 
             long total = loop.TotalAssets;
@@ -62,7 +68,7 @@ namespace AllIn.Core
         public static Loop FromSave(SaveData data, IPriceModel priceModel = null)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            var loop = new Loop(data, new Xoshiro128(ToUInts(data.marketRngState)), new Xoshiro128(ToUInts(data.rngState)));
+            var loop = new Loop(data, new Xoshiro128(ToUInts(data.marketRngState)), new Xoshiro128(ToUInts(data.rngState)), new Xoshiro128(ToUInts(data.subTickRngState)));
             if (priceModel != null) loop.PriceModel = priceModel;
             return loop;
         }
@@ -72,6 +78,7 @@ namespace AllIn.Core
         {
             Data.marketRngState = ToInts(_market.GetState());
             Data.rngState = ToInts(_rng.GetState());
+            Data.subTickRngState = ToInts(_subTick.GetState());
             return Data;
         }
 
@@ -83,7 +90,18 @@ namespace AllIn.Core
         public int AbsSlot => Calendar.AbsoluteSlot(Data.day, Data.slot);
         public bool Finished => Data.finished;
         public int DaysLeft => Math.Max(0, Rules.Days - Data.day);
-        public long TotalAssets => Data.cash + PositionValue;
+
+        long PendingTransferSum()
+        {
+            long sum = 0;
+            foreach (var t in Data.pendingTransfers) sum += t.amount;
+            return sum;
+        }
+
+        /// <summary>Bank + domestic + overseas + in-transit (excludes position — used for room tier, B5 §1).</summary>
+        public long TotalCashLikeForRoom => Data.bankCash + Data.domesticCash + Data.overseasCash + PendingTransferSum();
+
+        public long TotalAssets => TotalCashLikeForRoom + PositionValue;
 
         // ---- actions ----
 
@@ -97,33 +115,90 @@ namespace AllIn.Core
 
         public ActionResult Do(IAction action)
         {
-            var ok = Check(action);
-            if (!ok.Ok) return ActionResult.Refused(ok.Reason);
-            var result = action.Execute(this);
-            if (!result.Ok) return result;
-            if (!string.IsNullOrEmpty(result.Message)) Log(result.Message);
-            if (action.EndsSlot)
-            {
-                if (Data.slot == Slot.Night && !(action is RestAction))
-                {
-                    AddMental(-Rules.AllNighterMental); // all-nighter: no recovery, mental hit
-                    Log(Texts.AllNighter);
-                }
-                EndSlotAndAdvance();
-            }
-            Snapshot();
-            return result;
+            var w = BeginWatchableAction(action);
+            if (w.Walk != null) FinishWatch(w.Walk);
+            return w.Result;
         }
 
         /// <summary>End the slot doing nothing (rest by day, sleep at night).</summary>
         public ActionResult Pass() => Do(RestAction.Instance);
 
-        // ---- time ----
+        // ---- time / watchable slot advance (B5a: the watch scene can pause between BeginWatchableAction and FinishWatch) ----
 
-        void EndSlotAndAdvance()
+        public readonly struct WatchableAction
         {
-            while (true)
+            public readonly ActionResult Result;
+            /// <summary>Non-null only when the action ended the slot and a position may be at risk this slot. Caller must call FinishWatch(Walk) exactly once.</summary>
+            public readonly SubTickWalk Walk;
+            internal WatchableAction(ActionResult result, SubTickWalk walk) { Result = result; Walk = walk; }
+        }
+
+        /// <summary>
+        /// Runs Check/Execute for `action` (same order as Do). If it ends the slot, advances the clock and prices
+        /// the slot's move, but stops short of applying the outcome — the caller (Game, for a live watch scene) may
+        /// drive the returned walk's Step()/AddMargin()/StopLoss() before calling FinishWatch. Headless callers
+        /// (Do(), sims, tests) never see a Walk: Do() always finishes it immediately with zero intervention.
+        /// </summary>
+        public WatchableAction BeginWatchableAction(IAction action)
+        {
+            var ok = Check(action);
+            if (!ok.Ok) return new WatchableAction(ActionResult.Refused(ok.Reason), null);
+            var result = action.Execute(this);
+            if (!result.Ok) return new WatchableAction(result, null);
+            if (!string.IsNullOrEmpty(result.Message)) Log(result.Message);
+            if (!action.EndsSlot)
             {
+                Snapshot();
+                return new WatchableAction(result, null);
+            }
+            if (Data.slot == Slot.Night && !(action is RestAction))
+            {
+                AddMental(-Rules.AllNighterMental); // all-nighter: no recovery, mental hit
+                Log(Texts.AllNighter);
+            }
+
+            Data.stats.slotsPlayed++;
+            OnSlotEnd();
+            if (Data.day == Rules.Days && Data.slot == Slot.Night)
+            {
+                Finish();
+                Snapshot();
+                return new WatchableAction(result, null);
+            }
+
+            AdvanceClockOnly();
+            var walk = BeginPriceWalk();
+            if (!walk.WatchTriggered)
+            {
+                walk.RunToEnd();
+                FinishPriceWalk(walk);
+                OnSlotStart();
+                TrackAssets();
+                ContinueCascadeAndDeferredEvents();
+                Snapshot();
+                return new WatchableAction(result, null);
+            }
+            return new WatchableAction(result, walk);
+        }
+
+        /// <summary>Completes a walk returned by BeginWatchableAction (auto-running any remaining sub-ticks) and finishes the slot advance.</summary>
+        public void FinishWatch(SubTickWalk walk)
+        {
+            if (walk == null) return;
+            if (!walk.Done) walk.RunToEnd();
+            FinishPriceWalk(walk);
+            OnSlotStart();
+            TrackAssets();
+            ContinueCascadeAndDeferredEvents();
+            Snapshot();
+        }
+
+        void ContinueCascadeAndDeferredEvents()
+        {
+            while (AbsSlot < Data.lostUntilSlot)
+            {
+                // "can't get up": the slot passes as rest.
+                RestAction.Instance.Execute(this);
                 Data.stats.slotsPlayed++;
                 OnSlotEnd();
                 if (Data.day == Rules.Days && Data.slot == Slot.Night)
@@ -133,22 +208,15 @@ namespace AllIn.Core
                 }
                 MoveToNextSlot();
                 TrackAssets();
-                if (AbsSlot < Data.lostUntilSlot)
-                {
-                    // "can't get up": the slot passes as rest.
-                    RestAction.Instance.Execute(this);
-                    continue;
-                }
-                if (Data.e3AtSlot >= 0 && AbsSlot >= Data.e3AtSlot)
-                {
-                    Data.e3AtSlot = -1;
-                    Emit(new GameEvent { id = EventIds.SelfPity, count = Rng.NextInt(Texts.E3Monologues.Length) });
-                }
-                return;
+            }
+            if (Data.e3AtSlot >= 0 && AbsSlot >= Data.e3AtSlot)
+            {
+                Data.e3AtSlot = -1;
+                Emit(new GameEvent { id = EventIds.SelfPity, count = Rng.NextInt(Texts.E3Monologues.Length) });
             }
         }
 
-        void MoveToNextSlot()
+        void AdvanceClockOnly()
         {
             if (Data.slot == Slot.Night)
             {
@@ -159,25 +227,49 @@ namespace AllIn.Core
             {
                 Data.slot = Data.slot + 1;
             }
-            TickPrice();
+        }
+
+        void MoveToNextSlot()
+        {
+            AdvanceClockOnly();
+            var walk = BeginPriceWalk();
+            walk.RunToEnd();
+            FinishPriceWalk(walk);
             OnSlotStart();
         }
 
-        void TickPrice()
+        /// <summary>Draws the slot's close price (market stream, unchanged) and, if a position is open, decomposes
+        /// it into Rules.SubTicksPerSlot sub-tick prices (sub-tick stream) for tail-risk liquidation. Doesn't commit
+        /// anything to Data yet — see SubTickWalk / FinishPriceWalk.</summary>
+        SubTickWalk BeginPriceWalk()
         {
-            Data.price = PriceModel.Next(Data.price, _market);
+            long oldPrice = Data.price;
+            long newPrice = PriceModel.Next(oldPrice, _market);
+            long[] prices = Data.hasPosition ? SubTickModel.Build(oldPrice, newPrice, _subTick) : new[] { newPrice };
+            return new SubTickWalk(this, prices, Data.hasPosition ? Data.position : null);
+        }
+
+        /// <summary>Commits the walk's final price (always the slot's true close, regardless of how the position's
+        /// story played out), then applies liquidation bookkeeping and always sweeps the ghost list (OnTick).</summary>
+        void FinishPriceWalk(SubTickWalk walk)
+        {
+            var prices = walk.Prices;
+            Data.price = prices[prices.Count - 1];
             Data.priceHistory.Add(Data.price);
             if (Data.priceHistory.Count > Rules.PriceHistoryLength) Data.priceHistory.RemoveAt(0);
+            if (walk.WatchTriggered) Data.stats.watchesShown++;
+            if (!walk.WasClosedEarly && walk.WasLiquidated) LiquidatePosition(walk.WasTailLiquidation);
             OnTick();
         }
 
         void OnSlotStart()
         {
+            ResolvePendingTransfers();
             switch (Data.slot)
             {
                 case Slot.Dawn:
                     OnNewDay();
-                    var room = Calendar.RoomFor(Data.cash);
+                    var room = Calendar.RoomFor(TotalCashLikeForRoom);
                     if (room != Data.room)
                     {
                         Emit(new GameEvent { id = EventIds.MoveRoom, ints = new[] { (int)Data.room, (int)room } });
@@ -192,7 +284,7 @@ namespace AllIn.Core
                     }
                     break;
                 case Slot.Evening:
-                    PayFixed(Rules.FoodPerDay);
+                    PayFixedFromBank(Rules.FoodPerDay);
                     Data.stats.foodPaid++;
                     break;
             }
@@ -223,21 +315,34 @@ namespace AllIn.Core
         public void AddMental(int delta) => Data.mental = ClampGauge(Data.mental + delta);
         static int ClampGauge(int v) => v < Rules.GaugeMin ? Rules.GaugeMin : v > Rules.GaugeMax ? Rules.GaugeMax : v;
 
-        public void AddCash(long amount)
+        public void AddBank(long amount)
         {
             if (amount < 0) throw new ArgumentOutOfRangeException(nameof(amount));
-            Data.cash += amount;
+            Data.bankCash += amount;
         }
 
         /// <summary>Takes exactly this much; callers check affordability first.</summary>
-        public void SpendCash(long amount)
+        public void SpendBank(long amount)
         {
-            if (amount < 0 || amount > Data.cash) throw new InvalidOperationException("can't spend " + amount + " of " + Data.cash);
-            Data.cash -= amount;
+            if (amount < 0 || amount > Data.bankCash) throw new InvalidOperationException("can't spend " + amount + " of " + Data.bankCash);
+            Data.bankCash -= amount;
         }
 
         /// <summary>Fixed costs take what's there — cash never goes below 0 (no debt in this prototype).</summary>
-        void PayFixed(long amount) => Data.cash -= Math.Min(Data.cash, amount);
+        void PayFixedFromBank(long amount) => Data.bankCash -= Math.Min(Data.bankCash, amount);
+
+        public void AddOverseas(long amount)
+        {
+            if (amount < 0) throw new ArgumentOutOfRangeException(nameof(amount));
+            Data.overseasCash += amount;
+        }
+
+        /// <summary>Takes exactly this much; callers check affordability first.</summary>
+        public void SpendOverseas(long amount)
+        {
+            if (amount < 0 || amount > Data.overseasCash) throw new InvalidOperationException("can't spend " + amount + " of " + Data.overseasCash);
+            Data.overseasCash -= amount;
+        }
 
         public void Emit(GameEvent e)
         {

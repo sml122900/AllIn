@@ -29,7 +29,7 @@ namespace AllIn.Core.Tests
             var loop = PassToEnd(Loop.NewRun(2));
             Assert.AreEqual(1, loop.Data.stats.rentPaid);
             Assert.AreEqual(30, loop.Data.stats.foodPaid);
-            Assert.AreEqual(Rules.StartingCash - Rules.Rent - 30 * Rules.FoodPerDay, loop.Data.cash);
+            Assert.AreEqual(Rules.StartingCash - Rules.Rent - 30 * Rules.FoodPerDay, loop.Data.bankCash);
         }
 
         [Test]
@@ -39,10 +39,10 @@ namespace AllIn.Core.Tests
             long afterRent = Rules.StartingCash - Rules.Rent;
             loop.Pass(); loop.Pass(); // dawn → morning → afternoon
             Assert.AreEqual(Slot.Afternoon, loop.Data.slot);
-            Assert.AreEqual(afterRent, loop.Data.cash);
+            Assert.AreEqual(afterRent, loop.Data.bankCash);
             loop.Pass();
             Assert.AreEqual(Slot.Evening, loop.Data.slot);
-            Assert.AreEqual(afterRent - Rules.FoodPerDay, loop.Data.cash);
+            Assert.AreEqual(afterRent - Rules.FoodPerDay, loop.Data.bankCash);
         }
 
         [Test]
@@ -63,7 +63,7 @@ namespace AllIn.Core.Tests
             Assert.AreEqual(EventIds.Opening, loop.PopEvent().id);
             Assert.AreEqual(EventIds.FirstPopup, loop.PopEvent().id);
             Assert.IsNull(loop.PopEvent());
-            Assert.AreEqual(19_550_000, loop.Data.cash);
+            Assert.AreEqual(19_550_000, loop.Data.bankCash);
             Assert.AreEqual(Room.OneRoom, loop.Data.room);
         }
 
@@ -98,7 +98,7 @@ namespace AllIn.Core.Tests
         {
             var loop = Loop.NewRun(7);
             loop.PopEvent(); loop.PopEvent();
-            loop.Data.cash = 2_000_000;
+            loop.Data.bankCash = 2_000_000;
             loop.Pass();
             Assert.AreEqual(Room.OneRoom, loop.Data.room, "not re-judged mid-day");
             while (loop.Data.slot != Slot.Dawn) loop.Pass();
@@ -121,7 +121,7 @@ namespace AllIn.Core.Tests
             var restored = Loop.FromSave(Clone(a.Snapshot()));
             for (int i = 0; i < 40; i++) { a.Pass(); restored.Pass(); }
             Assert.AreEqual(a.Data.price, restored.Data.price);
-            Assert.AreEqual(a.Data.cash, restored.Data.cash);
+            Assert.AreEqual(a.Data.bankCash, restored.Data.bankCash);
             Assert.AreEqual(a.Data.day, restored.Data.day);
             Assert.AreEqual(a.Data.slot, restored.Data.slot);
         }
@@ -142,8 +142,11 @@ namespace AllIn.Core.Tests
             c.pendingEvents = new System.Collections.Generic.List<GameEvent>(s.pendingEvents);
             c.log = new System.Collections.Generic.List<string>(s.log);
             c.tickets = new System.Collections.Generic.List<LottoTicket>(s.tickets);
+            c.pendingTransfers = new System.Collections.Generic.List<PendingTransfer>(s.pendingTransfers);
+            c.ghosts = new System.Collections.Generic.List<Ghost>(s.ghosts);
             c.rngState = (int[])s.rngState.Clone();
             c.marketRngState = (int[])s.marketRngState.Clone();
+            c.subTickRngState = (int[])s.subTickRngState.Clone();
             c.stats = (Stats)typeof(object).GetMethod("MemberwiseClone", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(s.stats, null);
             return c;
         }
