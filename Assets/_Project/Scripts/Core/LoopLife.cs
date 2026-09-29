@@ -23,7 +23,10 @@ namespace AllIn.Core
 
         public bool IsBankrupt => Data.bankruptSinceDay > 0;
 
-        /// <summary>D3: still bankrupt on the 7th day after the state began -> no choice, the ship is forced.</summary>
+        /// <summary>Days held since the state began (0 on the declaration day); -1 when not bankrupt. HUD "파산 D+N / 14".</summary>
+        public int BankruptDaysHeld => Data.bankruptSinceDay > 0 ? Data.day - Data.bankruptSinceDay : -1;
+
+        /// <summary>D3: still bankrupt on the 14th day after the state began -> no choice, the ship is forced.</summary>
         public bool ForcedVoyageDue => Data.bankruptSinceDay > 0 && !Data.atSea &&
                                        Data.day - Data.bankruptSinceDay >= Rules.BankruptForcedAfterDays;
 
@@ -52,16 +55,26 @@ namespace AllIn.Core
             if (TotalAssets < Rules.BankruptBelowAssets)
             {
                 if (d.bankruptSinceDay == 0) d.bankruptSinceDay = d.day;
-                Emit(new GameEvent
+                int held = d.day - d.bankruptSinceDay;
+                // D3: the popup comes on the declaration day, once more on the 7th day, and forced on the 14th — the days
+                // in between are only the HUD countdown.
+                if (held == 0 || held == Rules.BankruptReconfirmAfterDays || ForcedVoyageDue)
                 {
-                    id = EventIds.Bankrupt,
-                    amount = TotalAssets,
-                    ints = new[] { ForcedVoyageDue ? 1 : 0 },
-                    count = d.day - d.bankruptSinceDay,
-                });
-                Log(Texts.E9Bankrupt);
+                    Emit(new GameEvent
+                    {
+                        id = EventIds.Bankrupt,
+                        amount = TotalAssets,
+                        ints = new[] { ForcedVoyageDue ? 1 : 0 },
+                        count = held,
+                    });
+                    Log(Texts.E9Bankrupt);
+                }
             }
-            else d.bankruptSinceDay = 0;
+            else if (d.bankruptSinceDay > 0)
+            {
+                d.bankruptSinceDay = 0;
+                Log(Texts.BankruptCleared);
+            }
         }
 
         void FallIll()
@@ -117,8 +130,8 @@ namespace AllIn.Core
         /// <summary>
         /// Six months at sea. Optionally closes the open position first (fee applies, proceeds to the overseas wallet).
         /// Then simulates all 900 slots — market and sub-tick paths included, so a position left open can be liquidated and
-        /// ghosts can fire — with no player actions, rent, food, recovery or popups. Returns with +15,000,000 in the bank,
-        /// mental 50, body max -15 (floor 40), health debt +1, back in a goshiwon.
+        /// ghosts can fire — with no player actions, rent, food, recovery or popups. Returns with the voyage pay (Rules.VoyagePayFor) in the bank,
+        /// mental 50, body max -15 (floor 20), health debt +1, back in a goshiwon.
         /// </summary>
         public ActionResult Depart(bool closePosition)
         {
@@ -151,7 +164,8 @@ namespace AllIn.Core
             d.stats.voyageLiquidations += d.stats.liquidations - liquidationsBefore;
             long lostAtSea = liquidated ? realizedBefore - d.stats.coinRealized : 0;
 
-            AddBank(Rules.VoyagePay);
+            long pay = Rules.VoyagePayFor(d.stats.voyages);
+            AddBank(pay);
             d.mental = Rules.VoyageMental;
             d.bodyMax = Math.Max(Rules.BodyMaxFloor, d.bodyMax - Rules.VoyageBodyMaxLoss);
             d.body = Math.Min(d.body, d.bodyMax);
@@ -165,20 +179,25 @@ namespace AllIn.Core
             d.room = Room.Goshiwon;                                   // the one-room lease ended; a goshiwon for now
             d.roomRecheckDay = d.day + Rules.RentIntervalDays;
             d.nextRentDay = d.day + Rules.RentIntervalDays;
-            d.nextHealthCheckDay = d.day + Rules.HealthCheckIntervalDays;
+            // D5: the illness clock is calendar-based and keeps running (also across later voyages); it starts at the first
+            // return. Checks that fell due at sea collapse into the one immediate roll below.
+            if (d.stats.voyages == 1) d.nextHealthCheckDay = d.day + Rules.HealthCheckIntervalDays;
+            else while (d.nextHealthCheckDay <= d.day) d.nextHealthCheckDay += Rules.HealthCheckIntervalDays;
 
             // Nothing that happened at sea should pop up piecemeal: keep only the E9 that is currently being answered.
             d.pendingEvents.RemoveAll(e => e.id != EventIds.Bankrupt);
             Emit(new GameEvent
             {
                 id = EventIds.VoyageReturn,
-                amount = Rules.VoyagePay,
+                amount = pay,
                 amount2 = lostAtSea,
                 amount3 = d.hasPosition ? PositionValue : 0,
                 // age, body max, health debt, voyage count, position state (0 none / 1 still open / 2 liquidated at sea)
                 ints = new[] { Age, d.bodyMax, d.healthDebt, d.stats.voyages, d.hasPosition ? 1 : (leftOpen && liquidated ? 2 : 0) },
             });
             Log(Texts.VoyageReturnTitle);
+            // D5: one illness roll right after every return (debt >= 1 here, chance = debt x 10%)
+            if (Rng.Chance(Math.Min(1.0, d.healthDebt * Rules.IllnessChancePerDebt))) FallIll();
             TrackAssets();
             Snapshot();
             return ActionResult.Done();

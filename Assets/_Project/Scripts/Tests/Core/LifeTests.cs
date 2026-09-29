@@ -170,16 +170,43 @@ namespace AllIn.Core.Tests
             Assert.AreEqual(2, loop.Data.bankruptSinceDay);
         }
 
+        static int E9Count(Loop loop) => loop.Data.pendingEvents.Count(e => e.id == EventIds.Bankrupt);
+
         [Test]
-        public void E9_OffersAChoice_UntilTheSeventhDay()
+        public void E9_PopsUpOnDeclaration_OnDay7_AndForcedOnDay14_NotOnTheDaysBetween()
         {
-            var loop = BankruptAtDawn(23);
-            var e9 = loop.Data.pendingEvents.Last(e => e.id == EventIds.Bankrupt);
-            Assert.AreEqual(0, e9.ints[0], "first dawn: a choice, not forced");
-            Assert.IsFalse(loop.ForcedVoyageDue);
-            PassUntil(loop, 8, Slot.Dawn);
-            Assert.IsFalse(loop.ForcedVoyageDue, "6 days held is not yet 7");
+            var loop = Fresh(23);
+            Broke(loop);
+            PassUntil(loop, 2, Slot.Dawn);
+            int start = loop.Data.bankruptSinceDay;
+            Assert.AreEqual(2, start);
+            Assert.AreEqual(1, E9Count(loop));
+            Assert.AreEqual(0, loop.Data.pendingEvents.Last(e => e.id == EventIds.Bankrupt).ints[0], "first dawn: a choice");
+            Assert.AreEqual(0, loop.BankruptDaysHeld);
+            var seen = new System.Collections.Generic.List<int>();
+            for (int held = 1; held < Rules.BankruptForcedAfterDays; held++)
+            {
+                loop.Data.pendingEvents.Clear();
+                PassUntil(loop, start + held, Slot.Dawn);
+                Assert.AreEqual(held, loop.BankruptDaysHeld);
+                if (E9Count(loop) > 0) seen.Add(held);
+                Assert.IsFalse(loop.ForcedVoyageDue, "held " + held);
+            }
+            CollectionAssert.AreEqual(new[] { 7 }, seen, "one more choice on day 7, silence otherwise");
             Assert.AreEqual(0, loop.Data.stats.voyages);
+        }
+
+        [Test]
+        public void Day7Popup_IsAChoiceNotForced()
+        {
+            var loop = Fresh(27);
+            Broke(loop);
+            PassUntil(loop, 2, Slot.Dawn);
+            loop.Data.pendingEvents.Clear();
+            PassUntil(loop, 2 + Rules.BankruptReconfirmAfterDays, Slot.Dawn);
+            var e9 = loop.Data.pendingEvents.Last(e => e.id == EventIds.Bankrupt);
+            Assert.AreEqual(0, e9.ints[0]);
+            Assert.AreEqual(7, e9.count);
         }
 
         [Test]
@@ -205,17 +232,55 @@ namespace AllIn.Core.Tests
         }
 
         [Test]
-        public void SeventhHeldDay_ForcesTheShip_WithNoChoice()
+        public void FourteenthHeldDay_ForcesTheShip_WithNoChoice()
         {
             var loop = Fresh(26);
             Broke(loop);
-            PassUntil(loop, 8, Slot.Night);
-            Assert.AreEqual(0, loop.Data.stats.voyages, "six days held: still a choice");
-            loop.Pass(); // Day 9 dawn = 7 days after the state began on Day 2
+            PassUntil(loop, 15, Slot.Night);
+            Assert.AreEqual(0, loop.Data.stats.voyages, "13 days held: still a choice");
+            loop.Pass(); // Day 16 dawn = 14 days after the state began on Day 2
             Assert.AreEqual(1, loop.Data.stats.voyages, "forced");
-            Assert.AreEqual(9 + Rules.VoyageDays, loop.Data.day);
+            Assert.AreEqual(16 + Rules.VoyageDays, loop.Data.day);
             Assert.AreEqual(Slot.Dawn, loop.Data.slot);
             Assert.IsFalse(loop.IsBankrupt);
+        }
+
+        [Test]
+        public void HoldingOn_CrossingTheLineMidway_ClearsTheStateWithAOneLineNotice()
+        {
+            var loop = Fresh(28);
+            Broke(loop);
+            PassUntil(loop, 2 + 9, Slot.Dawn);
+            Assert.IsTrue(loop.IsBankrupt);
+            loop.Data.bankCash = Rules.BankruptBelowAssets + 10 * Rules.FoodPerDay;
+            PassUntil(loop, 2 + 10, Slot.Dawn);
+            Assert.IsFalse(loop.IsBankrupt);
+            Assert.AreEqual(-1, loop.BankruptDaysHeld);
+            Assert.IsTrue(loop.Data.log.Any(l => l.Contains(Texts.BankruptCleared)));
+            PassUntil(loop, 2 + 20, Slot.Dawn);
+            Assert.AreEqual(0, loop.Data.stats.voyages, "no forced ship after recovering");
+        }
+
+        /// <summary>Constant check plus a real run: from ~0 assets, a restaurant shift every day clears 534,000 within the 14 days.</summary>
+        [Test]
+        public void JobOnly_CanClearTheBankruptcyLineWithin14Days()
+        {
+            long constant = Rules.BankruptForcedAfterDays * (Rules.RestaurantWage - Rules.FoodPerDay);
+            Assert.GreaterOrEqual(constant, Rules.BankruptBelowAssets, "arithmetic path exists");
+
+            var loop = Fresh(29);
+            Broke(loop);
+            PassUntil(loop, 2, Slot.Dawn);
+            int guard = 0;
+            while (loop.IsBankrupt && !loop.ForcedVoyageDue && guard++ < 200)
+            {
+                if (loop.Data.slot == Slot.Evening && loop.Do(WorkRestaurantAction.Instance).Ok) continue;
+                loop.Pass();
+            }
+            Assert.IsFalse(loop.IsBankrupt, "released by working alone");
+            Assert.AreEqual(0, loop.Data.stats.voyages);
+            Assert.LessOrEqual(loop.Data.day - 2, Rules.BankruptForcedAfterDays, "cleared at the latest on the forced dawn itself");
+            System.Console.WriteLine("job-only clear on held day " + (loop.Data.day - 2));
         }
 
         // ---- the ship ----
@@ -281,19 +346,20 @@ namespace AllIn.Core.Tests
         }
 
         [Test]
-        public void BodyMax_FallsBy15PerVoyage_AndNeverBelow40()
+        public void BodyMax_FallsBy15PerVoyage_AndNeverBelow20()
         {
             var loop = Fresh(33);
-            int[] expected = { 85, 70, 55, 40, 40, 40 };
+            int[] expected = { 85, 70, 55, 40, 25, 20, 20 };
             foreach (int want in expected)
             {
                 loop.Data.bankruptSinceDay = loop.Data.day;
                 Assert.IsTrue(loop.Depart(false).Ok);
                 Assert.AreEqual(want, loop.Data.bodyMax);
             }
-            Assert.AreEqual(6, loop.Data.healthDebt);
+            Assert.AreEqual(7, loop.Data.healthDebt);
+            Assert.Less(Rules.BodyMaxFloor, Rules.RestaurantMinBody, "the floor makes the job impossible");
             loop.AddBody(500);
-            Assert.AreEqual(40, loop.Data.body, "healing stops at the new maximum");
+            Assert.AreEqual(20, loop.Data.body, "healing stops at the new maximum");
         }
 
         [Test]
@@ -547,5 +613,46 @@ namespace AllIn.Core.Tests
             for (int i = 0; i < 9; i++) Assert.IsTrue(Checkup(loop));
             Assert.AreEqual(1, loop.Data.healthDebt, "the earlier ones did not count");
         }
-    }
+    
+        // ---- v0.4 reply: the ship has a price ----
+
+        [Test]
+        public void VoyagePay_Is15M_ThenDropsTenPercentOfBaseFromTheThird_FloorNineMillion()
+        {
+            long[] expected = { 15_000_000, 15_000_000, 13_500_000, 12_000_000, 10_500_000, 9_000_000, 9_000_000 };
+            for (int n = 1; n <= expected.Length; n++) Assert.AreEqual(expected[n - 1], Rules.VoyagePayFor(n), "voyage " + n);
+            var loop = Fresh(40);
+            for (int n = 1; n <= 3; n++) { loop.Data.bankruptSinceDay = loop.Data.day; loop.Data.bankCash = 0; loop.Depart(false); }
+            Assert.AreEqual(13_500_000, loop.Data.pendingEvents.Last(e => e.id == EventIds.VoyageReturn).amount);
+        }
+
+        [Test]
+        public void Return_RollsIllnessOnceAtOnce_CertainAtTenDebt()
+        {
+            var loop = Fresh(41);
+            loop.Data.healthDebt = 9; // +1 on return = 10 -> 100%
+            loop.Data.bankruptSinceDay = loop.Data.day;
+            loop.Depart(false);
+            Assert.AreEqual(1, loop.Data.stats.illnesses, "the immediate roll");
+            Assert.IsTrue(HasEvent(loop, EventIds.Sick));
+            Assert.Greater(loop.Data.lostUntilSlot, loop.AbsSlot);
+        }
+
+        [Test]
+        public void IllnessClock_StartsAtTheFirstReturn_AndKeepsTheCalendarAcrossLaterVoyages()
+        {
+            var loop = Fresh(42);
+            loop.Data.bankruptSinceDay = loop.Data.day;
+            loop.Depart(false);
+            int firstReturn = loop.Data.day;
+            Assert.AreEqual(firstReturn + 30, loop.Data.nextHealthCheckDay);
+            PassUntil(loop, firstReturn + 10, Slot.Dawn);
+            int before = loop.Data.nextHealthCheckDay;
+            loop.Data.bankruptSinceDay = loop.Data.day;
+            loop.Depart(false);
+            Assert.Greater(loop.Data.nextHealthCheckDay, loop.Data.day, "checks that fell due at sea are collapsed into one");
+            Assert.AreEqual(0, (loop.Data.nextHealthCheckDay - before) % 30, "same 30-day calendar, not reset to return + 30");
+            Assert.LessOrEqual(loop.Data.nextHealthCheckDay - loop.Data.day, 30);
+        }
+}
 }

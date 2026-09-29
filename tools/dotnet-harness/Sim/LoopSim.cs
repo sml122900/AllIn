@@ -207,9 +207,15 @@ namespace AllIn.Harness.Sim
 
         // ---- F: "인생 3회 파산" (DESIGN.md D7, report-only) ----
 
+        public const int LifeVoyages = 5;
+
         public sealed class LifeOutcome
         {
-            public bool Completed;       // reached 3 voyages within the guard
+            public bool Completed;       // reached LifeVoyages voyages within the guard
+            public double[] AgeAtReturn = new double[LifeVoyages + 1];   // index = voyage number (1..LifeVoyages), 0 = not reached
+            public int[] BodyMaxAtReturn = new int[LifeVoyages + 1];
+            public int[] IllnessesAtReturn = new int[LifeVoyages + 1];
+            public int Reached;          // voyages actually completed
             public double AgeAtThirdReturn;
             public int Days;             // day number at the third return
             public int BodyMax;
@@ -227,12 +233,18 @@ namespace AllIn.Harness.Sim
             var d = loop.Data;
             var o = new LifeOutcome();
             int guard = 0;
-            while (d.stats.voyages < 3)
+            while (d.stats.voyages < LifeVoyages)
             {
                 if (guard++ > 400_000) return FinishLife(o, loop, false);
                 d.pendingEvents.Clear(); // nobody is watching
                 if (loop.Finished) { loop.ContinueLife(); continue; }
-                if (loop.CanDepart().Ok) { loop.Depart(true); continue; }
+                if (loop.CanDepart().Ok)
+                {
+                    loop.Depart(true);
+                    int n = d.stats.voyages;
+                    o.AgeAtReturn[n] = Loop.AgeYears(d.day); o.BodyMaxAtReturn[n] = d.bodyMax; o.IllnessesAtReturn[n] = d.stats.illnesses;
+                    continue;
+                }
 
                 if (!loop.DomesticLocked && d.domesticCash > 0) loop.TransferDomesticToOverseas(d.domesticCash);
                 if (!d.hasPosition && d.overseasCash > 0 &&
@@ -249,7 +261,8 @@ namespace AllIn.Harness.Sim
         {
             var d = loop.Data;
             o.Completed = completed;
-            o.AgeAtThirdReturn = Loop.AgeYears(d.day);
+            o.Reached = d.stats.voyages;
+            o.AgeAtThirdReturn = o.AgeAtReturn[3];
             o.Days = d.day;
             o.BodyMax = d.bodyMax;
             o.Illnesses = d.stats.illnesses;
@@ -410,34 +423,39 @@ namespace AllIn.Harness.Sim
         {
             var f = new List<LifeOutcome>(runs);
             for (int seed = 1; seed <= runs; seed++) f.Add(PlayLife(seed));
-            var done = f.Where(o => o.Completed).ToList();
             string F1(double v) => v.ToString("F2", CultureInfo.InvariantCulture);
             double P(IEnumerable<double> xs, double p) { var a = xs.OrderBy(v => v).ToArray(); return a[(int)Math.Round(p * (a.Length - 1))]; }
 
             sb.AppendLine();
-            sb.AppendLine("## F 인생 3회 파산 (DESIGN.md D7, 보고 전용 — 수용 기준 없음)");
+            sb.AppendLine("## F 인생 반복 파산 (DESIGN.md D7, 보고 전용 — 수용 기준 없음)");
             sb.AppendLine();
-            sb.AppendLine("봇: 은행 → 국내 → 해외로 옮겨 100배 올인 롱, 청산되면 남은 돈으로 반복, 저녁엔 알바. E9(파산)가 뜨면 곧바로 [원양어선을 탄다]([정리]로 포지션을 닫고 출발). 검진은 한 번도 안 받는다. **파산 → 승선 → 복귀를 3번** 겪을 때까지 진행. 나이는 3회째 복귀 시점(21 + (day−1)/365, 소수).");
+            sb.AppendLine($"봇: 은행 → 국내 → 해외로 옮겨 100배 올인 롱, 청산되면 남은 돈으로 반복, 저녁엔 알바. E9(파산)가 뜨면 곧바로 [원양어선을 탄다]([정리]로 포지션을 닫고 출발). 검진은 한 번도 안 받는다. **파산 → 승선 → 복귀를 {LifeVoyages}번** 겪을 때까지 진행. 나이 = 21 + (day−1)/365(소수). 질병 판정: 첫 복귀부터 달력 30일마다 + 매 복귀 직후 1회.");
             sb.AppendLine();
-            if (done.Count == 0) { sb.AppendLine("3회 승선에 도달한 런이 없다."); return; }
-            var ages = done.Select(o => o.AgeAtThirdReturn).ToList();
+            var done = f.Where(o => o.Completed).ToList();
+            if (done.Count == 0) { sb.AppendLine($"{LifeVoyages}회 승선에 도달한 런이 없다."); return; }
             var ill = done.Select(o => (double)o.Illnesses).ToList();
             var bill = done.Select(o => (double)o.HospitalPaid).ToList();
             sb.AppendLine("| 항목 | 값 |");
             sb.AppendLine("|---|---|");
-            sb.AppendLine($"| 3회 승선 완료 런 | {done.Count} / {runs} |");
+            sb.AppendLine($"| {LifeVoyages}회 승선 완료 런 | {done.Count} / {runs} |");
             if (done.Count < runs)
-                sb.AppendLine($"| 미완료 런 (가드 40만 슬롯) | {runs - done.Count}건 — 봇이 이익 난 100배 포지션을 청산될 때까지 닫지 않는 성격이라, 가격이 크게 올라 청산가에서 멀어진 채 수십 년치 슬롯을 그냥 보유한 런(총자산은 평가익으로 큼, 파산 조건 미충족). 봇 특성이며 규칙 결함이 아님 |");
-            sb.AppendLine($"| 3회째 복귀 시 나이 평균 / p10 / 중앙 / p90 | {F1(ages.Average())} / {F1(P(ages, 0.1))} / {F1(P(ages, 0.5))} / {F1(P(ages, 0.9))} 세 |");
-            sb.AppendLine($"| 나이 p99 / 최대 (긴 꼬리 = 봇이 우연히 오래 버틴 런) | {F1(P(ages, 0.99))} / {F1(ages.Max())} 세 |");
-            sb.AppendLine($"| 3회째 복귀 시 Day 평균 | {done.Average(o => o.Days).ToString("F0", CultureInfo.InvariantCulture)} |");
-            sb.AppendLine($"| 3회 후 body 최대치 | {string.Join(" / ", done.Select(o => o.BodyMax).Distinct().OrderBy(v => v))} (100 − 15×3) |");
-            sb.AppendLine($"| 질병 발생 횟수 평균 / p50 / p90 / 최대 | {F1(ill.Average())} / {P(ill, 0.5):F0} / {P(ill, 0.9):F0} / {ill.Max():F0} |");
-            sb.AppendLine($"| 질병 0회로 3회 승선을 마친 비율 | {Pct(done.Count(o => o.Illnesses == 0) / (double)done.Count)} |");
-            sb.AppendLine($"| 병원비 합계 평균 / 중앙 / p90 | {Won((long)bill.Average())} / {Won((long)P(bill, 0.5))} / {Won((long)P(bill, 0.9))} |");
+                sb.AppendLine($"| 미완료 런 (가드 40만 슬롯) | {runs - done.Count}건 — 봇이 이익 난 100배 포지션을 청산될 때까지 닫지 않는 성격이라 청산가에서 멀어진 채 계속 보유한 런. 봇 특성이며 규칙 결함이 아님 |");
+            for (int n = 1; n <= LifeVoyages; n++)
+            {
+                var reached = f.Where(o => o.Reached >= n).ToList();
+                if (reached.Count == 0) continue;
+                var ages = reached.Select(o => o.AgeAtReturn[n]).ToList();
+                sb.AppendLine($"| {n}회째 복귀 시 나이 평균 / p10 / 중앙 / p90 (n={reached.Count}) | {F1(ages.Average())} / {F1(P(ages, 0.1))} / {F1(P(ages, 0.5))} / {F1(P(ages, 0.9))} 세 |");
+                sb.AppendLine($"| {n}회째 복귀 시 body 최대치 / 지급액 | {string.Join(" / ", reached.Select(o => o.BodyMaxAtReturn[n]).Distinct().OrderBy(v => v))} / {Won(Rules.VoyagePayFor(n))} |");
+                sb.AppendLine($"| {n}회째 복귀까지 질병 0회 비율 | {Pct(reached.Count(o => o.IllnessesAtReturn[n] == 0) / (double)reached.Count)} |");
+            }
+            var ages5 = done.Select(o => o.AgeAtReturn[LifeVoyages]).ToList();
+            sb.AppendLine($"| **{LifeVoyages}회 도달 나이 중앙값** | {F1(P(ages5, 0.5))} 세 (p99 {F1(P(ages5, 0.99))} / 최대 {F1(ages5.Max())}) |");
+            sb.AppendLine($"| {LifeVoyages}회 도달 시 질병 발생 횟수 평균 / p50 / p90 / 최대 | {F1(ill.Average())} / {P(ill, 0.5):F0} / {P(ill, 0.9):F0} / {ill.Max():F0} |");
+            sb.AppendLine($"| {LifeVoyages}회 도달 시 병원비 합계 평균 / 중앙 / p90 | {Won((long)bill.Average())} / {Won((long)P(bill, 0.5))} / {Won((long)P(bill, 0.9))} |");
             sb.AppendLine($"| 런당 평균 청산 | {F1(done.Average(o => (double)o.Liquidations))} |");
             sb.AppendLine();
-            sb.AppendLine("해석 메모: 승선 1회 = 180일이라 3회만으로 나이가 약 1.5년 오르고, 봇이 다시 파산하는 데 걸리는 기간이 더해진다. 건강 부채는 승선마다 +1이라 판정 확률이 10% → 20% → 30%로 오르지만 판정은 30일에 한 번뿐이고 승선 복귀 직후 30일이 지나야 첫 판정이 오므로, 파산이 빠른 봇은 질병을 거의 못 만난다.");
+            sb.AppendLine("해석 메모: 승선 1회 = 180일. 복귀 직후 판정이 생겨 반복 승선자도 매번 (건강 부채 × 10%)로 질병을 만난다. body 최대치는 5회에 25(알바 한계), 6회부터 20(하한, 알바 불가). 복귀 금액은 3회부터 −10%씩.");
         }
 
         static long Percentile(IEnumerable<long> values, double p)

@@ -265,6 +265,8 @@ namespace AllIn.Core
         public const string CheckupNoCash = "검진받을 돈이 없다.";
         public static string CheckupEffect(int progress, int of) => "건강 관리 " + progress + "/" + of;
         public const string BankruptStatus = "파산 상태";
+        public static string BankruptCountdown(int held, int limit) => "파산 D+" + held + " / " + limit;
+        public const string BankruptCleared = "파산 상태에서 벗어났다.";
         public const string HealthDebt = "건강 부채";
         public const string BodyMax = "체력 최대치";
         public const string Age = "나이";

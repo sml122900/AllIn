@@ -40,3 +40,6 @@ tools/**/obj/
 # OS
 Thumbs.db
 .DS_Store
+# Unity crash-recovery scenes
+/Assets/_Recovery/
+/Assets/_Recovery.meta

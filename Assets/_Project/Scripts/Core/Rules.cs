@@ -97,14 +97,20 @@ namespace AllIn.Core
         public const int DaysPerYear = 365;
         public const int RentIntervalDays = 30;             // D2: rent recurs every 30 days once the run continues past Day 30
         public const long BankruptBelowAssets = Rent + 7 * FoodPerDay; // D3: rent + 7 days of food
-        public const int BankruptForcedAfterDays = 7;       // D3: still bankrupt this many days after the first declaration -> forced voyage
+        public const int BankruptForcedAfterDays = 14;      // D3: still bankrupt this many days after the first declaration -> forced voyage
+        public const int BankruptReconfirmAfterDays = 7;    // D3: the choice popup comes once more on this day of holding on
         public const int VoyageDays = 180;                  // D4: six months
         public const int VoyageSlots = VoyageDays * SlotsPerDay;
         public const long VoyagePay = 15_000_000;
+        public const int VoyagePayCutFromVoyage = 3;        // D4: from this voyage on the pay drops by VoyagePayCut each time
+        public const long VoyagePayCut = 1_500_000;         // 10% of VoyagePay
+        public const long VoyagePayFloor = 9_000_000;
+        public static long VoyagePayFor(int voyageNumber) =>
+            voyageNumber < VoyagePayCutFromVoyage ? VoyagePay : System.Math.Max(VoyagePayFloor, VoyagePay - VoyagePayCut * (voyageNumber - VoyagePayCutFromVoyage + 1));
         public const int VoyageMental = 50;
         public const int VoyageBodyMaxLoss = 15;
         public const int BodyMaxStart = GaugeMax;
-        public const int BodyMaxFloor = 40;
+        public const int BodyMaxFloor = 20;           // below RestaurantMinBody (25): six voyages can end the job
         public const int HealthCheckIntervalDays = 30;      // D5
         public const double IllnessChancePerDebt = 0.10;
         public const long HospitalMin = 1_000_000;
