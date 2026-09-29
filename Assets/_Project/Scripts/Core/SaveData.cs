@@ -140,6 +140,7 @@ namespace AllIn.Core
         public int liquidationsDuringLock;    // liquidated while the domestic->overseas transfer was locked
         public int ghostFired;
         public int ghostFiredEnhanced;
+        public List<int> ghostResolutionSlots = new List<int>(); // slots between liquidation and each E8 firing (report-only)
 
         // schedule bookkeeping (tests / sims)
         public int rentPaid;

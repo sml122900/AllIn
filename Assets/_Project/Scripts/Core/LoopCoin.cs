@@ -45,6 +45,7 @@ namespace AllIn.Core
                                      AbsSlot - Data.lastOverseasArrivalAbsSlot <= Rules.GhostEnhancedWindowSlots;
                     Data.stats.ghostFired++;
                     if (enhanced) Data.stats.ghostFiredEnhanced++;
+                    Data.stats.ghostResolutionSlots.Add(AbsSlot - g.liqAbsSlot);
                     Data.stats.ghostMissedMoney += Math.Max(0, g.peakFavorablePnl);
                     AddMental(enhanced ? -Rules.GhostMentalEnhanced : -Rules.GhostMental);
                     Emit(new GameEvent

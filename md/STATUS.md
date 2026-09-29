@@ -5,7 +5,7 @@ _Single session-to-session context doc. Newest state at top._
 ## Current
 - Branch: `feat/loop-proto`. Remote `origin` = https://github.com/sml122900/AllIn (private). `main` and `feat/loop-proto` pushed 2026-09-25.
 - Stage: **코인 선물 개편 v0.3 "청산 체인" done** (2026-09-29) — see Log. Part B Stage 8 (human play, now on top of v0.3) and Part C (hold'em) human play are both still pending — observations come from the user separately.
-- Unity compile: **verified** 2026-09-29 via unity-mcp (editor open): 0 errors, **163/163 EditMode tests** (161 Core+Holdem via the harness + 2 Game). Win64 build succeeds; dev capture ran a full 30-day scripted playthrough with 0 exceptions and screenshots of all four new scenes (관전/분노/24시간 룰/본절).
+- Unity compile: **verified** 2026-09-29 via unity-mcp (editor open): 0 errors, **165/165 EditMode tests** (163 Core+Holdem via the harness + 2 Game). Win64 build succeeds; dev capture ran a full 30-day scripted playthrough with 0 exceptions and screenshots of all four new scenes (관전/분노/24시간 룰/본절).
 
 ## Next
 - **Human play (user), v0.3 on top of Stage 8 + C7:** open `Assets/_Project/Scenes/Loop.unity`, press Play (or run `Builds/Win64/AllIn.exe`), play one 30-day run. On Day 1, move money 은행 → 국내 거래소 → 해외 지갑 (새 "거래소" 버튼) before the first coin trade — otherwise coin is unfunded. Watch for: the 관전 scene at the liquidation edge, 분노 tint + recovery calculator after a liquidation, the 24시간 잠김 countdown, and 본절(E8) if price recovers within 10 days. Record observations below — no number changes (tuning is the user's call). Target 10–15 min.
@@ -67,11 +67,13 @@ _Single session-to-session context doc. Newest state at top._
 - v0.3 known rough edge: in the CoinScreen open form, when tilted **and** the overseas wallet is empty **and** mental < 30, the "입금하러 가기" button crowds the leverage row (x50/x100 partly covered) — both still clickable, just visually cramped. Low priority (placeholder-tier UI, narrow edge case) but worth a real layout pass if it bothers you in play.
 
 ## Sim E observations (청산 체인, 1,000 runs — report-only, no acceptance criteria, no numbers changed)
+- **2026-09-29 수정**: 꼬리 청산 플래그가 원래 "12번째 서브틱 이전에 청산됨"으로 정의되어 있어 94.9%로 과대 집계됐다(사용자 지적, 반사 원리상 기대치는 ~50%). 올바른 정의(종가/최신 청산가 기준으로도 청산이었는지)로 고치니 **45.4%**로 정정 — 이론 기대치에 훨씬 가깝다. 새 정의: 청산된 슬롯의 종가(서브틱 12, 증거금 추가가 있었으면 최신 청산가 기준)가 그 자체로는 청산을 유발하지 않았을 때만 "꼬리 청산". 테스트 3건 추가(꼬리 / 종가도 청산가 너머 / 12번째 서브틱만 청산) — `SubTickTests.cs`.
+- 레버리지별: 25배(첫 진입) 41.6% (849건 청산), 100배(재진입) 45.9% (6,709건 청산) — 둘 다 이론 기대치 근방. C(25배 단발)도 같은 41.6%로 교차 검증됨.
 - 런당 평균 청산 7.56회, 30일 파산률 3.8%. 중앙값 163,082원 — 체인을 반복할수록 수수료(왕복 10%@100배)가 누적되어 대부분 잃는다.
-- 꼬리 청산 비율 94.9%: 100배에서는 거의 매번 종가가 아니라 경로 중간에서 청산된다 — 서브틱 분해가 의도대로 작동.
-- 관전 발생 9,727회, 생존율 22.3%: 관전까지 간 슬롯 중 약 4/5는 그대로 청산으로 이어진다(70%→90% 손실까지 거리가 짧음, 특히 고배율).
+- 관전 발생 9,727회(런당 p50 9 / p90 19), 생존율 22.3%: 관전까지 간 슬롯 중 약 4/5는 그대로 청산으로 이어진다(70%→90% 손실까지 거리가 짧음, 특히 고배율). 관전 중 봇 행동은 없음(헤드리스 sim은 `BeginWatchableAction`을 직접 구동하지 않고 항상 `Do()`/`Pass()`로 자동 완결 — 기도 0회 기준선).
 - 청산의 31.2%가 잠김(24시간 룰) 기간 중 발생 — "돈이 묶인 채 청산 알림만 보는" 체인의 핵심 장면이 자연 발생함을 확인.
-- 청산 대비 E8(본절) 78.8%, 그중 강화 변형 24.8% — 가격이 평균 회귀하는 시뮬레이션 특성상 높게 나옴(변동성 상수 불변, 청산가가 진입가에 가까운 고배율 특성).
+- 청산 대비 E8(본절) 78.8%, 그중 강화 변형 24.8%, 청산→E8까지 슬롯 수 p50 3 / p90 20 (n=5,957) — 가격이 평균 회귀하는 시뮬레이션 특성상 대부분 빠르게(중앙값 3슬롯≈0.6일) 회복한다.
+- **A~D 재확인** (v0.3 직전 2026-09-25 대비): A 20,738,000원 그대로(정확히 동일, 코인 미사용). C 청산율 81.8%→84.9%(상승, 꼬리 청산 추가와 일치). D 중앙값 7,184,768→7,712,281원(상승했지만 "청산이 약해져서"가 아니라 구조적 이유 둘 — 지갑 이동 때문에 첫 거래가 하루 늦어져 도박 판수가 줄고, 10배는 청산에 필요한 단일 슬롯 변동폭(~9%)이 커서 애초에 잘 안 터짐(평균 청산 0.12/런). D도 서브틱 꼬리 청산을 정상적으로 타는 것은 "그중 꼬리 청산" 19.4%로 직접 확인. 상세 표는 md/SIM_REPORT.md "A~D 재보고" 참고.
 
 ## Sim observations (Stage 5, seeds 1..1000 — observations only, no numbers changed)
 - A exact 20,738,000 every run. C liquidated 81.8% (margin over the 80% bar is thin — any volatility tweak could flip it). D median 10.1M (PASS).

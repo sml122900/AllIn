@@ -48,6 +48,53 @@ namespace AllIn.Core.Tests
             Assert.AreEqual(1, loop.Data.stats.tailLiquidations);
         }
 
+        /// <summary>Not a tail liquidation: the close sub-tick is ALSO past the liquidation price, so this isn't
+        /// "liquidated mid-path but would have survived to the close" — it's just an ordinary liquidation that
+        /// happened to be detected before we ever looked at sub-tick 12.</summary>
+        [Test]
+        public void Liquidation_NotTail_WhenTheCloseSubTickAlone_AlsoBreaches()
+        {
+            var loop = Loop.NewRun(410, new ScriptedPrices(P0, P0));
+            loop.Data.overseasCash = Rules.StartingCash;
+            loop.SubTickModel = LinearSubTickPath.Instance;
+            Assert.IsTrue(loop.Do(new CoinOpenAction(Direction.Long, 25, 10_000_000)).Ok);
+            var p = loop.Data.position;
+            long liq = (long)System.Math.Floor(CoinRules.LiquidationPrice(p));
+
+            var path = new long[Rules.SubTicksPerSlot];
+            for (int i = 0; i < path.Length; i++) path[i] = P0;
+            path[5] = liq - 1_000_000;      // breaches mid-path first
+            path[path.Length - 1] = liq - 500_000; // the close is ALSO past the liquidation price
+            loop.SubTickModel = new ScriptedSubTicks(path);
+
+            loop.Pass();
+            Assert.IsFalse(loop.Data.hasPosition);
+            Assert.AreEqual(1, loop.Data.stats.liquidations);
+            Assert.AreEqual(0, loop.Data.stats.tailLiquidations, "the close alone would also have liquidated — not a tail event");
+        }
+
+        /// <summary>Not a tail liquidation: nothing breaches before the close sub-tick (12th) — the close itself is the trigger.</summary>
+        [Test]
+        public void Liquidation_NotTail_WhenOnlyTheFinalSubTick_Breaches()
+        {
+            var loop = Loop.NewRun(411, new ScriptedPrices(P0, P0));
+            loop.Data.overseasCash = Rules.StartingCash;
+            loop.SubTickModel = LinearSubTickPath.Instance;
+            Assert.IsTrue(loop.Do(new CoinOpenAction(Direction.Long, 25, 10_000_000)).Ok);
+            var p = loop.Data.position;
+            long liq = (long)System.Math.Floor(CoinRules.LiquidationPrice(p));
+
+            var path = new long[Rules.SubTicksPerSlot];
+            for (int i = 0; i < path.Length; i++) path[i] = P0; // safe all the way through sub-tick 11
+            path[path.Length - 1] = liq - 500_000; // only the 12th (close) sub-tick breaches
+            loop.SubTickModel = new ScriptedSubTicks(path);
+
+            loop.Pass();
+            Assert.IsFalse(loop.Data.hasPosition);
+            Assert.AreEqual(1, loop.Data.stats.liquidations);
+            Assert.AreEqual(0, loop.Data.stats.tailLiquidations, "liquidated exactly at the close — not a tail event");
+        }
+
         [Test]
         public void AddMargin_MidWatch_PushesLiquidationPriceAway_SavingTheRemainingPath()
         {

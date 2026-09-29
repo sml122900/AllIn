@@ -148,6 +148,7 @@ namespace AllIn.Core.Tests
             c.marketRngState = (int[])s.marketRngState.Clone();
             c.subTickRngState = (int[])s.subTickRngState.Clone();
             c.stats = (Stats)typeof(object).GetMethod("MemberwiseClone", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(s.stats, null);
+            c.stats.ghostResolutionSlots = new System.Collections.Generic.List<int>(s.stats.ghostResolutionSlots);
             return c;
         }
     }

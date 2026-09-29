@@ -30,10 +30,14 @@ namespace AllIn.Core.Tests
         {
             var loop = Liquidate(700);
             int mental = loop.Data.mental;
+            int liqAbsSlot = loop.AbsSlot;
 
             loop.PriceModel = new ScriptedPrices(P0); // recovers all the way back to entry
             loop.Data.pendingEvents.Clear();
             loop.Pass();
+
+            Assert.AreEqual(1, loop.Data.stats.ghostResolutionSlots.Count);
+            Assert.AreEqual(loop.AbsSlot - liqAbsSlot, loop.Data.stats.ghostResolutionSlots[0]);
 
             Assert.AreEqual(0, loop.Data.ghosts.Count, "resolved, no longer tracked");
             Assert.AreEqual(1, loop.Data.stats.ghostFired);

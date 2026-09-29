@@ -65,7 +65,10 @@ namespace AllIn.Core
             if (_position != null && CoinRules.IsLiquidated(_position, price))
             {
                 _liquidated = true;
-                _tailLiquidation = _index < _prices.Length - 1; // liquidated before the slot's close sub-tick
+                // "꼬리 청산": liquidated mid-path, but the slot's close sub-tick (at the CURRENT — possibly
+                // margin-added — liquidation price) would not have triggered it on its own. Not just "before index 11".
+                long closePrice = _prices[_prices.Length - 1];
+                _tailLiquidation = !CoinRules.IsLiquidated(_position, closePrice);
             }
             _index++;
         }
