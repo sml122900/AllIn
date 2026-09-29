@@ -89,7 +89,11 @@ namespace AllIn.Core
 
         public int AbsSlot => Calendar.AbsoluteSlot(Data.day, Data.slot);
         public bool Finished => Data.finished;
-        public int DaysLeft => Math.Max(0, Rules.Days - Data.day);
+        /// <summary>Days left in the current 30-day stretch (Day 1..30 identical to the old 30-day loop; then 60, 90...).</summary>
+        public int DaysLeft => Rules.Days - ((Data.day - 1) % Rules.Days + 1);
+
+        /// <summary>Month-end: the settlement pause (Day 30, 60, 90...) after the night slot.</summary>
+        bool IsMonthEnd => Data.slot == Slot.Night && Data.day % Rules.Days == 0;
 
         long PendingTransferSum()
         {
@@ -108,6 +112,8 @@ namespace AllIn.Core
         public Availability Check(IAction action)
         {
             if (Data.finished) return Availability.No("");
+            if (Data.atSea) return Availability.No(Texts.AtSea);
+            if (ForcedVoyageDue) return Availability.No(Texts.VoyageForced);
             if (!action.Slots.Has(Data.slot)) return Availability.No("");
             if (action.EndsSlot && !(action is RestAction) && Data.body <= 0) return Availability.No(Texts.BodyZero);
             return action.Check(this);
@@ -117,6 +123,7 @@ namespace AllIn.Core
         {
             var w = BeginWatchableAction(action);
             if (w.Walk != null) FinishWatch(w.Walk);
+            AutoDepartIfForced();
             return w.Result;
         }
 
@@ -159,13 +166,19 @@ namespace AllIn.Core
 
             Data.stats.slotsPlayed++;
             OnSlotEnd();
-            if (Data.day == Rules.Days && Data.slot == Slot.Night)
+            if (IsMonthEnd)
             {
                 Finish();
                 Snapshot();
                 return new WatchableAction(result, null);
             }
+            return AdvanceAfterSlotEnd(result);
+        }
 
+        /// <summary>The second half of a slot end: clock, price walk, next slot's start. Shared with ContinueLife (the month-end
+        /// slot already ran its OnSlotEnd before the settlement pause).</summary>
+        WatchableAction AdvanceAfterSlotEnd(ActionResult result)
+        {
             AdvanceClockOnly();
             var walk = BeginPriceWalk();
             if (!walk.WatchTriggered)
@@ -195,13 +208,13 @@ namespace AllIn.Core
 
         void ContinueCascadeAndDeferredEvents()
         {
-            while (AbsSlot < Data.lostUntilSlot)
+            while (AbsSlot < Data.lostUntilSlot && !ForcedVoyageDue)
             {
                 // "can't get up": the slot passes as rest.
                 RestAction.Instance.Execute(this);
                 Data.stats.slotsPlayed++;
                 OnSlotEnd();
-                if (Data.day == Rules.Days && Data.slot == Slot.Night)
+                if (IsMonthEnd)
                 {
                     Finish();
                     return;
@@ -257,7 +270,7 @@ namespace AllIn.Core
             Data.price = prices[prices.Count - 1];
             Data.priceHistory.Add(Data.price);
             if (Data.priceHistory.Count > Rules.PriceHistoryLength) Data.priceHistory.RemoveAt(0);
-            if (walk.WatchTriggered) Data.stats.watchesShown++;
+            if (walk.WatchTriggered && !Data.atSea) Data.stats.watchesShown++;
             if (!walk.WasClosedEarly && walk.WasLiquidated) LiquidatePosition(walk.WasTailLiquidation);
             OnTick();
         }
@@ -269,8 +282,9 @@ namespace AllIn.Core
             {
                 case Slot.Dawn:
                     OnNewDay();
+                    OnDawnLife();
                     var room = Calendar.RoomFor(TotalCashLikeForRoom);
-                    if (room != Data.room)
+                    if (room != Data.room && Data.day >= Data.roomRecheckDay)
                     {
                         Emit(new GameEvent { id = EventIds.MoveRoom, ints = new[] { (int)Data.room, (int)room } });
                         Log(Texts.E6Move(Data.room, room));
@@ -278,7 +292,7 @@ namespace AllIn.Core
                     }
                     if (Data.mental < Rules.CantGetUpBelow)
                     {
-                        Data.lostUntilSlot = Calendar.AbsoluteSlot(Data.day, Slot.Afternoon);
+                        Data.lostUntilSlot = Math.Max(Data.lostUntilSlot, Calendar.AbsoluteSlot(Data.day, Slot.Afternoon));
                         Emit(new GameEvent { id = EventIds.CantGetUp });
                         Log(Texts.CantGetUp);
                     }
@@ -294,7 +308,7 @@ namespace AllIn.Core
         {
             Data.finished = true;
             TrackAssets();
-            Emit(new GameEvent { id = EventIds.Settlement, amount = TotalAssets });
+            Emit(new GameEvent { id = EventIds.Settlement, amount = TotalAssets, count = Data.day / Rules.Days });
         }
 
         void TrackAssets()
@@ -311,7 +325,7 @@ namespace AllIn.Core
 
         // ---- mutation helpers used by actions ----
 
-        public void AddBody(int delta) => Data.body = ClampGauge(Data.body + delta);
+        public void AddBody(int delta) => Data.body = Math.Min(Data.bodyMax, ClampGauge(Data.body + delta));
         public void AddMental(int delta) => Data.mental = ClampGauge(Data.mental + delta);
         static int ClampGauge(int v) => v < Rules.GaugeMin ? Rules.GaugeMin : v > Rules.GaugeMax ? Rules.GaugeMax : v;
 

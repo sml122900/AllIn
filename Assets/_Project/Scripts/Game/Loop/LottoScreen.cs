@@ -71,7 +71,7 @@ namespace AllIn.Game.LoopScene
             int draw = Calendar.NextSaturday(d.day);
             _info.text = "오늘 " + d.lottoBoughtToday + " / " + Rules.LottoMaxPerDay + "회\n" +
                          Texts.LottoTicketsFor(draw) + " " + Texts.SlotNames[(int)Slot.Evening] + " · 보유 " + loop.TicketsForNextDraw + "장" +
-                         (draw > Rules.Days ? "  <color=" + Ui.Hex(Palette.Down) + ">(30일 안에 추첨 없음)</color>" : "");
+                         (draw > (d.day - 1) / Rules.Days * Rules.Days + Rules.Days ? "  <color=" + Ui.Hex(Palette.Down) + ">(이번 30일 안에 추첨 없음)</color>" : "");
             var can = loop.Check(LottoBuyAction.Instance);
             _buy.Interactable = can.Ok;
             _reason.text = can.Ok ? "" : can.Reason;

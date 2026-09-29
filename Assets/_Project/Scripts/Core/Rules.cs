@@ -91,5 +91,26 @@ namespace AllIn.Core
         public const int GhostMentalEnhanced = 25;
         public const int TiltDefaultLeverage = 100;
         public const int BadSleepBody = 15;                 // half of SleepBody; mental stays +0
+
+        // D (v0.4) — life: age, bankruptcy, the ocean-going ship, health. All provisional (DESIGN.md Part D).
+        public const int StartAge = 21;
+        public const int DaysPerYear = 365;
+        public const int RentIntervalDays = 30;             // D2: rent recurs every 30 days once the run continues past Day 30
+        public const long BankruptBelowAssets = Rent + 7 * FoodPerDay; // D3: rent + 7 days of food
+        public const int BankruptForcedAfterDays = 7;       // D3: still bankrupt this many days after the first declaration -> forced voyage
+        public const int VoyageDays = 180;                  // D4: six months
+        public const int VoyageSlots = VoyageDays * SlotsPerDay;
+        public const long VoyagePay = 15_000_000;
+        public const int VoyageMental = 50;
+        public const int VoyageBodyMaxLoss = 15;
+        public const int BodyMaxStart = GaugeMax;
+        public const int BodyMaxFloor = 40;
+        public const int HealthCheckIntervalDays = 30;      // D5
+        public const double IllnessChancePerDebt = 0.10;
+        public const long HospitalMin = 1_000_000;
+        public const long HospitalMax = 5_000_000;
+        public const int IllnessLostDays = 3;
+        public const long CheckupCost = 50_000;
+        public const int CheckupsPerDebtRelief = 10;
     }
 }

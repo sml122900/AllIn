@@ -10,6 +10,7 @@ namespace AllIn.Core
         /// <summary>B5a: margin add is free and available any time a position is open, not just mid-watch.</summary>
         public Availability AddMarginToPosition(long amount)
         {
+            if (Data.atSea) return Availability.No(Texts.AtSea);
             if (!Data.hasPosition) return Availability.No(Texts.CoinNoPosition);
             if (amount <= 0 || amount > Data.overseasCash) return Availability.No(Texts.WalletBadAmount);
             Data.overseasCash -= amount;
@@ -47,16 +48,19 @@ namespace AllIn.Core
                     if (enhanced) Data.stats.ghostFiredEnhanced++;
                     Data.stats.ghostResolutionSlots.Add(AbsSlot - g.liqAbsSlot);
                     Data.stats.ghostMissedMoney += Math.Max(0, g.peakFavorablePnl);
-                    AddMental(enhanced ? -Rules.GhostMentalEnhanced : -Rules.GhostMental);
-                    Emit(new GameEvent
+                    if (!Data.atSea) // at sea (D4) nothing pops up piecemeal; the return report summarizes
                     {
-                        id = EventIds.Ghost,
-                        amount = g.committed + g.addedMargin,
-                        amount2 = g.entryPrice,
-                        amount3 = pnl,
-                        ints = new[] { enhanced ? 1 : 0 },
-                    });
-                    Log(Texts.E8Title);
+                        AddMental(enhanced ? -Rules.GhostMentalEnhanced : -Rules.GhostMental);
+                        Emit(new GameEvent
+                        {
+                            id = EventIds.Ghost,
+                            amount = g.committed + g.addedMargin,
+                            amount2 = g.entryPrice,
+                            amount3 = pnl,
+                            ints = new[] { enhanced ? 1 : 0 },
+                        });
+                        Log(Texts.E8Title);
+                    }
                     Data.ghosts.RemoveAt(i);
                     continue;
                 }
@@ -92,6 +96,11 @@ namespace AllIn.Core
                 liqAbsSlot = AbsSlot,
                 expiryAbsSlot = AbsSlot + Rules.GhostTrackSlots,
             });
+            if (Data.atSea) // D4: liquidated while the phone is in a locker — counted, but no popup and no E3
+            {
+                Log(Texts.E1Title + " " + Fmt.Won(-lost));
+                return;
+            }
             // The tick that just happened moved us into Data.slot; night-side ticks wake you at 3am.
             string id = Calendar.IsNightSide(Data.slot) ? EventIds.LiquidationNight : EventIds.LiquidationDay;
             Emit(new GameEvent { id = id, amount = lost, amount2 = Data.price, count = p.leverage });
@@ -100,7 +109,7 @@ namespace AllIn.Core
         }
 
         /// <summary>Shared close math for a manual close (CoinCloseAction) and a watch-scene stop-loss (SubTickWalk).</summary>
-        internal long ClosePositionAt(long price)
+        internal long ClosePositionAt(long price, bool quiet = false)
         {
             var d = Data;
             var p = d.position;
@@ -109,6 +118,7 @@ namespace AllIn.Core
             d.hasPosition = false;
             AddOverseas(proceeds);
             d.stats.coinRealized += realized;
+            if (quiet) return realized; // D4: closing before the voyage — no mental swing, no hope circuit
             AddMental(CoinRules.CloseMentalDelta(realized, TotalAssets));
             if (realized > 0)
             {

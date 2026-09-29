@@ -114,7 +114,75 @@ namespace AllIn.Game.Dev
                 }
             }
             yield return Shot("end_hud");
+
+            // D (v0.4): [계속 살기] -> go broke on purpose -> E9 -> the ship (with a position left to decide about) -> the return.
+            ClickButtonByLabel(app, Texts.E7Continue);
+            yield return Wait(0.8f);
+            yield return DrainEvents(app);
+            yield return Shot("continued_hud");
+            {
+                var loop = app.Loop;
+                var d = loop.Data;
+                d.bankCash = 0; d.domesticCash = 0; d.overseasCash = 0; d.pendingTransfers.Clear();
+                d.hasPosition = true;
+                d.position = CoinRules.Open(Direction.Long, 5, 200_000, d.price, loop.AbsSlot);
+                d.healthDebt = 0;
+                app.Save();
+                app.Refresh();
+                int g2 = 0;
+                while (g2++ < 40 && !(loop.HasEvent && d.pendingEvents.Any(e => e.id == EventIds.Bankrupt)))
+                {
+                    app.Perform(RestAction.Instance);
+                    yield return WatchIfShowing(app);
+                    yield return null;
+                    yield return DrainUntilBankrupt(app);
+                }
+                yield return DrainUntilBankrupt(app);
+                yield return Wait(1.0f);
+                _captured.Add(EventIds.Bankrupt);
+                yield return Shot("event_E9");
+                ClickButtonByLabel(app, Texts.E9Board);
+                yield return Wait(0.5f);
+                if (d.hasPosition)
+                {
+                    yield return Shot("voyage_confirm");
+                    ClickButtonByLabel(app, Texts.VoyageLeave);
+                }
+                yield return Wait(2.4f);
+                yield return Shot("voyage_board");
+                yield return Wait(4.6f);
+                yield return Shot("voyage_skip");
+                yield return DrainEvents(app); // Confirm, then the return scene (shot on its own), then Confirm
+                yield return Wait(0.5f);
+                yield return Shot("after_voyage_hud");
+                UnityEngine.Debug.Log("[DevCapture] voyage result: day " + d.day + " age " + loop.Age + " bank " + d.bankCash + " bodyMax " + d.bodyMax + " debt " + d.healthDebt + " voyages " + d.stats.voyages);
+            }
             Application.Quit();
+        }
+
+        /// <summary>Drains popups but stops in front of E9, whose buttons a blind click would answer with "버틴다".</summary>
+        IEnumerator DrainUntilBankrupt(LoopApp app)
+        {
+            int guard = 0;
+            while (guard++ < 200)
+            {
+                yield return null;
+                if (!app.Events.Busy && !app.Loop.HasEvent) yield break;
+                if (app.Loop.HasEvent && app.Loop.Data.pendingEvents[0].id == EventIds.Bankrupt) yield break;
+                yield return Wait(0.3f);
+                ClickTopButton(app);
+                yield return Wait(0.1f);
+            }
+        }
+
+        static void ClickButtonByLabel(LoopApp app, string label)
+        {
+            foreach (var b in app.Events.GetComponentsInChildren<Button>(false))
+            {
+                var t = b.GetComponentInChildren<TMPro.TMP_Text>();
+                if (t != null && t.text == label && b.interactable) { b.onClick.Invoke(); return; }
+            }
+            UnityEngine.Debug.LogWarning("[DevCapture] button not found: " + label);
         }
 
         /// <summary>B5a: LoopApp.Perform starts the watch scene as a background coroutine when it triggers. Catch

@@ -15,6 +15,7 @@ namespace AllIn.Core
 
         public Availability TransferBankToDomestic(long amount)
         {
+            if (Data.atSea) return Availability.No(Texts.AtSea);
             if (amount <= 0 || amount > Data.bankCash) return Availability.No(Texts.WalletBadAmount);
             Data.bankCash -= amount;
             Data.domesticCash += amount;
@@ -25,6 +26,7 @@ namespace AllIn.Core
 
         public Availability TransferDomesticToOverseas(long amount)
         {
+            if (Data.atSea) return Availability.No(Texts.AtSea);
             if (DomesticLocked) return Availability.No(Texts.WalletLocked);
             if (amount <= 0 || amount > Data.domesticCash) return Availability.No(Texts.WalletBadAmount);
             Data.domesticCash -= amount;
@@ -35,6 +37,7 @@ namespace AllIn.Core
 
         public Availability TransferOverseasToDomestic(long amount)
         {
+            if (Data.atSea) return Availability.No(Texts.AtSea);
             if (amount <= 0 || amount > Data.overseasCash) return Availability.No(Texts.WalletBadAmount);
             Data.overseasCash -= amount;
             Data.pendingTransfers.Add(new PendingTransfer { amount = amount, kind = TransferKind.OverseasToDomestic, arrivalAbsSlot = AbsSlot + Rules.TransferDelaySlots });
@@ -44,6 +47,7 @@ namespace AllIn.Core
 
         public Availability TransferDomesticToBank(long amount)
         {
+            if (Data.atSea) return Availability.No(Texts.AtSea);
             if (amount <= 0 || amount > Data.domesticCash) return Availability.No(Texts.WalletBadAmount);
             Data.domesticCash -= amount;
             Data.pendingTransfers.Add(new PendingTransfer { amount = amount, kind = TransferKind.DomesticToBank, arrivalAbsSlot = AbsSlot + Rules.TransferDelaySlots });

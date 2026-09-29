@@ -56,6 +56,7 @@ namespace AllIn.Core
             if (ranks.Count == 0) return; // nothing bought for this draw: nothing to show
             if (won > 0) AddBank(won);
             Data.stats.lottoWon += won;
+            if (Data.atSea) { Log(Texts.LottoDrawTitle + " " + Fmt.Won(won)); return; } // D4: settled silently at sea
             Emit(new GameEvent
             {
                 id = EventIds.LottoDraw,

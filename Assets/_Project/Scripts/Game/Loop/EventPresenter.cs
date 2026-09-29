@@ -21,6 +21,10 @@ namespace AllIn.Game.LoopScene
 
         public bool Busy { get; private set; }
 
+        /// <summary>Runs once the current event has been popped and saved (the settlement's [계속 살기] uses it so the
+        /// resumed slot's own events queue up behind an already-empty queue instead of re-triggering the settlement).</summary>
+        Action _afterPop;
+
         public static EventPresenter Create(LoopApp app)
         {
             var canvas = Ui.Canvas("Events", 50);
@@ -47,6 +51,9 @@ namespace AllIn.Game.LoopScene
                 _app.Save();
             }
             _app.Refresh();
+            var after = _afterPop;
+            _afterPop = null;
+            after?.Invoke();
             Busy = false;
         }
 
@@ -63,7 +70,10 @@ namespace AllIn.Game.LoopScene
                 case EventIds.LottoDraw: return LottoDraw(e);
                 case EventIds.MoveRoom: return Popup(null, new[] { Texts.E6Move((Room)e.ints[0], (Room)e.ints[1]) }, Texts.Confirm);
                 case EventIds.Ghost: return Ghost(e);
-                case EventIds.Settlement: return Settlement();
+                case EventIds.Bankrupt: return Bankrupt(e);
+                case EventIds.Sick: return Popup(Texts.SickTitle, new[] { Texts.SickBody(e.amount, e.count) }, Texts.Confirm);
+                case EventIds.VoyageReturn: return VoyageReturn(e);
+                case EventIds.Settlement: return Settlement(e);
                 case EventIds.Fired: return Popup(null, new[] { Texts.WorkMistake }, Texts.Confirm);
                 case EventIds.CantGetUp: return Popup(null, new[] { Texts.CantGetUp }, Texts.Confirm);
                 default: return Popup(null, new[] { e.id }, Texts.Confirm);
@@ -376,15 +386,98 @@ namespace AllIn.Game.LoopScene
             Destroy(scrim.gameObject);
         }
 
-        // ---------- E7: settlement ----------
+        // ---------- E9: bankruptcy, and the ship (D3/D4) ----------
 
-        IEnumerator Settlement()
+        IEnumerator Bankrupt(GameEvent e)
+        {
+            var loop = _app.Loop;
+            if (!loop.CanDepart().Ok) yield break; // stale: the ship already sailed, or money came back before this popup
+            bool forced = e.ints.Length > 0 && e.ints[0] != 0;
+            int choice = -1;
+
+            var scrim = Scrim(new Color(0.06f, 0.02f, 0.02f, 0.92f));
+            var panel = Panel(scrim, 760, 400);
+            Ui.Text(panel, Texts.E9Title, 44, Palette.Down, TextAlignmentOptions.Center, true).rectTransform.Place(0, 1, 1, 1, 20, -90, 20, 24);
+            var lines = new List<string> { Texts.E9Body, Texts.Assets + " " + Fmt.Won(e.amount) };
+            if (forced) lines.Add(Texts.E9Forced);
+            else if (e.count > 0) lines.Add(Texts.E9Held(e.count));
+            Ui.Text(panel, string.Join("\n", lines), 26, align: TextAlignmentOptions.Center).rectTransform.Place(0, 1, 1, 1, 30, -260, 30, 110);
+            if (forced) Ui.Button(panel, Texts.E9Board, () => choice = 1, 26).Rect.Place(0.2f, 0, 0.8f, 0, 0, 30, 0, -100);
+            else
+            {
+                Ui.Button(panel, Texts.E9Board, () => choice = 1, 26).Rect.Place(0.05f, 0, 0.55f, 0, 0, 30, 0, -100);
+                Ui.Button(panel, Texts.E9Hold, () => choice = 0, 26).Rect.Place(0.6f, 0, 0.95f, 0, 0, 30, 0, -100);
+            }
+            while (choice < 0) yield return null;
+            Destroy(scrim.gameObject);
+            if (choice == 0) yield break;
+
+            // an open position: the last chance to deal with it
+            bool close = false;
+            if (loop.Data.hasPosition)
+            {
+                int pick = -1;
+                var s2 = Scrim(Palette.Scrim);
+                var p2 = Panel(s2, 760, 380);
+                var pos = loop.Data.position;
+                Ui.Text(p2, Texts.VoyageConfirmTitle, 34, Palette.Accent, TextAlignmentOptions.Center, true).rectTransform.Place(0, 1, 1, 1, 20, -80, 20, 24);
+                Ui.Text(p2, Texts.VoyageConfirmBody + "\n\n" + (pos.direction == Direction.Long ? Texts.CoinLong : Texts.CoinShort) + " x" + pos.leverage + "   " +
+                             Texts.CoinUnrealized + " " + Fmt.SignedWon(loop.UnrealizedPnl), 26, align: TextAlignmentOptions.Center)
+                  .rectTransform.Place(0, 1, 1, 1, 30, -250, 30, 100);
+                Ui.Button(p2, Texts.VoyageClose, () => pick = 1, 26).Rect.Place(0.05f, 0, 0.5f, 0, 0, 30, 0, -100);
+                Ui.Button(p2, Texts.VoyageLeave, () => pick = 0, 26).Rect.Place(0.55f, 0, 0.95f, 0, 0, 30, 0, -100);
+                while (pick < 0) yield return null;
+                Destroy(s2.gameObject);
+                close = pick == 1;
+            }
+
+            loop.Depart(close); // the six months are simulated in one go; what follows is the skip scene
+            _app.Save();
+
+            var black = Scrim(Color.black);
+            var text = Ui.Text(black, "", 30, align: TextAlignmentOptions.Center);
+            text.rectTransform.Place(0, 0.2f, 1, 0.8f, 60, 0, 60, 0);
+            Ui.Text(black, Texts.VoyageBoardTitle, 22, Palette.Dim, TextAlignmentOptions.Center).rectTransform.Place(0, 0.8f, 1, 0.9f);
+            var shown = new List<string>();
+            foreach (var line in Texts.VoyageBoardLines) { shown.Add(line); text.text = string.Join("\n\n", shown); yield return new WaitForSecondsRealtime(0.9f); }
+            shown.Clear();
+            foreach (var line in Texts.VoyageSkipLines) { shown.Add(line); text.text = string.Join("\n\n", shown); yield return new WaitForSecondsRealtime(0.9f); }
+            yield return WaitButton(black, Texts.Confirm);
+            Destroy(black.gameObject);
+        }
+
+        IEnumerator VoyageReturn(GameEvent e)
+        {
+            // ints: age, body max, health debt, voyage count, position state (0 none / 1 open / 2 liquidated at sea)
+            var black = Scrim(new Color(0, 0, 0, 0.94f));
+            var panel = Panel(black, 780, 520, new Color(0.08f, 0.09f, 0.11f, 1f));
+            Ui.Text(panel, Texts.VoyageReturnTitle, 40, Palette.Accent, TextAlignmentOptions.Center, true).rectTransform.Place(0, 1, 1, 1, 20, -84, 20, 24);
+            var lines = new List<string>
+            {
+                Texts.VoyageReturnPay(e.amount),
+                Texts.VoyageMirror,
+                Texts.VoyageAge(e.ints[0]) + "  " + Texts.BodyMax + " " + e.ints[1] + "  " + Texts.HealthDebt + " " + e.ints[2],
+                Texts.VoyageBankExpired,
+            };
+            switch (e.ints[4])
+            {
+                case 1: lines.Add(Texts.VoyagePositionOpen(e.amount3)); break;
+                case 2: lines.Add(Texts.VoyagePositionLiquidated(e.amount2)); break;
+            }
+            Ui.Text(panel, string.Join("\n\n", lines), 24, align: TextAlignmentOptions.Center).rectTransform.Place(0, 0, 1, 1, 30, 110, 30, 110);
+            yield return WaitButton(panel, Texts.Confirm);
+            Destroy(black.gameObject);
+        }
+
+        // ---------- E7: settlement (monthly, D1) ----------
+
+        IEnumerator Settlement(GameEvent e)
         {
             var loop = _app.Loop;
             var s = loop.Data.stats;
             var scrim = Scrim(new Color(0, 0, 0, 0.92f));
-            var panel = Panel(scrim, 860, 680);
-            Ui.Text(panel, Texts.E7Title, 34, Palette.Accent, TextAlignmentOptions.Center, true).rectTransform.Place(0, 1, 1, 1, 20, -70, 20, 20);
+            var panel = Panel(scrim, 860, 700);
+            Ui.Text(panel, Texts.E7TitleMonth(e.count), 34, Palette.Accent, TextAlignmentOptions.Center, true).rectTransform.Place(0, 1, 1, 1, 20, -70, 20, 20);
 
             long final = loop.TotalAssets;
             string Row(string label, string value) => "<color=" + Ui.Hex(Palette.Dim) + ">" + label + "</color>  " + value;
@@ -397,8 +490,10 @@ namespace AllIn.Game.LoopScene
                 Row(Texts.E7Max, Fmt.Won(s.maxAssets)) + "   " + Row(Texts.E7Min, Fmt.Won(s.minAssets)),
                 Row(Texts.E7Hope, s.hopeCircuits + "회"),
                 Row(Texts.E7Prayers, s.prayers + "회") + "   " + Row(Texts.E7RageBets, s.rageBets + "회") + "   " + Row(Texts.E7GhostMissed, Fmt.Won(s.ghostMissedMoney)),
+                Row(Texts.VoyageCount, s.voyages + "회") + "   " + Row(Texts.Age, Texts.AgeLabel(loop.Age)),
+                Row(Texts.BodyMax, loop.Data.bodyMax.ToString()) + "   " + Row(Texts.HealthDebt, loop.Data.healthDebt.ToString()),
             };
-            Ui.Text(panel, string.Join("\n", rows), 24, align: TextAlignmentOptions.TopLeft).rectTransform.Place(0, 1, 1, 1, 40, -350, 40, 90);
+            Ui.Text(panel, string.Join("\n", rows), 24, align: TextAlignmentOptions.TopLeft).rectTransform.Place(0, 1, 1, 1, 40, -400, 40, 90);
 
             var scenes = new List<string>();
             for (int i = 0; i < EventIds.Codex.Length; i++)
@@ -406,15 +501,17 @@ namespace AllIn.Game.LoopScene
                 bool seen = s.eventsSeen.Contains(EventIds.Codex[i]);
                 scenes.Add((seen ? "<color=" + Ui.Hex(Palette.Accent) + ">[O]</color> " : "<color=" + Ui.Hex(Palette.Dim) + ">[ ]</color> ") + Texts.SceneNames[i]);
             }
-            Ui.Text(panel, Texts.E7Scenes, 24, Palette.Dim, bold: true).rectTransform.Place(0, 1, 1, 1, 40, -400, 40, 360);
-            Ui.Text(panel, string.Join("\n", scenes.GetRange(0, 3)), 22, align: TextAlignmentOptions.TopLeft).rectTransform.Place(0, 1, 0.5f, 1, 40, -520, 0, 405);
-            Ui.Text(panel, string.Join("\n", scenes.GetRange(3, 3)), 22, align: TextAlignmentOptions.TopLeft).rectTransform.Place(0.5f, 1, 1, 1, 0, -520, 40, 405);
+            Ui.Text(panel, Texts.E7Scenes, 24, Palette.Dim, bold: true).rectTransform.Place(0, 1, 1, 1, 40, -440, 40, 410);
+            Ui.Text(panel, string.Join("\n", scenes.GetRange(0, 3)), 22, align: TextAlignmentOptions.TopLeft).rectTransform.Place(0, 1, 0.5f, 1, 40, -560, 0, 445);
+            Ui.Text(panel, string.Join("\n", scenes.GetRange(3, 3)), 22, align: TextAlignmentOptions.TopLeft).rectTransform.Place(0.5f, 1, 1, 1, 0, -560, 40, 445);
 
-            bool again = false;
-            Ui.Button(panel, Texts.E7Again, () => again = true, 26).Rect.Place(0.5f, 0, 0.5f, 0, -160, 26, -160, -90);
-            while (!again) yield return null;
+            int pick = -1;
+            Ui.Button(panel, Texts.E7Continue, () => pick = 1, 26).Rect.Place(0.05f, 0, 0.5f, 0, 0, 26, 0, -90);
+            Ui.Button(panel, Texts.E7Again, () => pick = 0, 26).Rect.Place(0.55f, 0, 0.95f, 0, 0, 26, 0, -90);
+            while (pick < 0) yield return null;
             Destroy(scrim.gameObject);
-            _app.StartNewLife();
+            if (pick == 0) _app.StartNewLife();
+            else _afterPop = () => _app.ContinueLife();
         }
     }
 }

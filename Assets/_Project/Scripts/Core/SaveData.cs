@@ -16,6 +16,7 @@ namespace AllIn.Core
         public int[] subTickRngState = new int[4]; // sub-tick decomposition of the slot's price move, separate from marketRngState
 
         public int body;
+        public int bodyMax = Rules.BodyMaxStart;   // D4: shrinks by 15 per voyage (floor 40); body is clamped to it
         public int mental;
         public int day;
         public Slot slot;
@@ -51,6 +52,15 @@ namespace AllIn.Core
 
         // job
         public int firedUntilDay;
+
+        // life (D, v0.4)
+        public int nextRentDay = 1 + Rules.RentIntervalDays;      // D2: next Day on which rent is charged (at dawn)
+        public int roomRecheckDay;                                  // D4: room is not re-judged before this Day (0 = always)
+        public int bankruptSinceDay;                                // D3: 0 = not bankrupt; else the Day the state began
+        public int healthDebt;                                      // D4/D5: +1 per voyage, -1 per 10 checkups
+        public int checkupProgress;                                 // D5: checkups since the last debt relief (only counts while debt > 0)
+        public int nextHealthCheckDay = 1 + Rules.HealthCheckIntervalDays; // D5: next illness roll (dawn)
+        public bool atSea;                                          // D4: true only while a voyage is being simulated; every action refuses
 
         // scheduling
         public int lostUntilSlot = -1;   // absolute slot index; slots before it are lost ("can't get up")
@@ -131,6 +141,13 @@ namespace AllIn.Core
         public List<string> eventsSeen = new List<string>();
         public int timesFired;
 
+        // D (v0.4) life
+        public int voyages;
+        public int illnesses;
+        public long hospitalPaid;
+        public int checkups;
+        public int voyageLiquidations;     // liquidated while the position was left open at sea
+
         // B5 v0.3 liquidation chain
         public int prayers;
         public int rageBets;
@@ -174,6 +191,9 @@ namespace AllIn.Core
         public const string MoveRoom = "E6";
         public const string Settlement = "E7";
         public const string Ghost = "E8";
+        public const string Bankrupt = "E9";
+        public const string Sick = "SICK";
+        public const string VoyageReturn = "VOYAGE_RETURN";
         public const string Fired = "FIRED";
         public const string CantGetUp = "CANT_GET_UP";
 

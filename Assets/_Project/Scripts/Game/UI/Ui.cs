@@ -199,7 +199,7 @@ namespace AllIn.Game.UI
         public sealed class Gauge
         {
             public RectTransform Root;
-            Image _fill;
+            Image _fill, _cap;
             TextMeshProUGUI _label;
             string _name;
 
@@ -209,15 +209,18 @@ namespace AllIn.Game.UI
                 g.Root = Rect(parent, "Gauge:" + name);
                 var bg = Image(g.Root, "bg", Palette.PanelLight);
                 g._fill = Image(bg.transform, "fill", color);
+                g._cap = Image(bg.transform, "cap", new Color(0.03f, 0.03f, 0.04f, 0.9f)); // the part of the bar a shrunken maximum takes away
+                g._cap.rectTransform.Place(1, 0, 1, 1);
                 g._label = Text(g.Root, name, 20, align: TextAlignmentOptions.Center, bold: true);
                 return g;
             }
 
-            public void Set(int value)
+            public void Set(int value, int max = 100)
             {
                 float v = Mathf.Clamp01(value / 100f);
                 _fill.rectTransform.Place(0, 0, v, 1);
-                _label.text = _name + " " + value;
+                _cap.rectTransform.Place(Mathf.Clamp01(max / 100f), 0, 1, 1);
+                _label.text = _name + " " + value + (max < 100 ? "/" + max : "");
             }
         }
 

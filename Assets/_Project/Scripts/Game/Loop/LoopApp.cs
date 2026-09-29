@@ -33,7 +33,8 @@ namespace AllIn.Game.LoopScene
         Canvas _hud;
         TextMeshProUGUI _dayText, _cashText, _assetText, _roomText, _positionText, _logText, _hintText;
         Ui.Gauge _body, _mental;
-        Ui.Btn _work, _coin, _exchange, _lotto, _rest;
+        Ui.Btn _work, _coin, _exchange, _lotto, _checkup, _rest;
+        TextMeshProUGUI _lifeText;
         UnityEngine.UI.Image _roomShade;
         float _hintUntil;
 
@@ -76,6 +77,25 @@ namespace AllIn.Game.LoopScene
         }
 
         public void Save() => SaveIO.Save(Loop.Snapshot());
+
+        /// <summary>[계속 살기] on the month-end settlement: same walk-then-watch shape as Perform, minus the busy guards
+        /// (the settlement popup that calls this has already been dismissed).</summary>
+        public void ContinueLife()
+        {
+            var w = Loop.BeginContinueLife();
+            Refresh();
+            if (w.Walk != null && w.Walk.WatchTriggered) StartCoroutine(Watch.Run(w.Walk, false));
+            else
+            {
+                if (w.Walk != null)
+                {
+                    w.Walk.RunToEnd();
+                    Loop.FinishWatch(w.Walk);
+                }
+                Save();
+                Refresh();
+            }
+        }
 
         /// <summary>The one door every player action goes through. Slot-ending actions that could leave a position
         /// at risk this slot (B5a) route through the watch scene before the result is finalized.</summary>
@@ -210,9 +230,11 @@ namespace AllIn.Game.LoopScene
             _mental = Ui.Gauge.Create(status, Texts.Mental, Palette.Mental);
             _mental.Root.Place(0, 0, 0, 1, 260, 4, -480, 4);
             _roomText = Ui.Text(status, "", 22, Palette.Accent);
-            _roomText.rectTransform.Place(0, 0, 0, 1, 500, 0, -700, 0);
+            _roomText.rectTransform.Place(0, 0.45f, 0, 1, 500, 0, -760, 0);
+            _lifeText = Ui.Text(status, "", 18, Palette.Dim);
+            _lifeText.rectTransform.Place(0, 0, 0, 0.5f, 500, 0, -760, 0);
             _positionText = Ui.Text(status, "", 22);
-            _positionText.rectTransform.Place(0, 0, 1, 1, 700, 0, 20, 0);
+            _positionText.rectTransform.Place(0, 0, 1, 1, 770, 0, 20, 0);
 
             // room shade (E3 darkens the room)
             _roomShade = Ui.Image(root, "RoomShade", new Color(0, 0, 0, 0));
@@ -228,27 +250,30 @@ namespace AllIn.Game.LoopScene
             var bottom = Ui.Image(root, "ActionBar", Palette.Panel).rectTransform.Place(0, 0, 1, 0, 0, 0, 0, -120);
             _hintText = Ui.Text(root, "", 22, Palette.Accent, TextAlignmentOptions.Center);
             _hintText.rectTransform.Place(0, 0, 1, 0, 0, 122, 0, -160);
-            string[] labels = { Texts.ActWork, Texts.ActCoin, Texts.WalletBank, Texts.ActLotto, Texts.ActRest };
+            string[] labels = { Texts.ActWork, Texts.ActCoin, Texts.WalletBank, Texts.ActLotto, Texts.ActCheckup, Texts.ActRest };
             Action[] actions =
             {
                 () => Perform(WorkRestaurantAction.Instance),
                 () => Coin.Show(),
                 () => Exchange.Show(),
                 () => Lotto.Show(),
+                () => Perform(CheckupAction.Instance),
                 () => Perform(RestAction.Instance),
             };
-            var buttons = new Ui.Btn[5];
-            for (int i = 0; i < 5; i++)
+            const int n = 6;
+            var buttons = new Ui.Btn[n];
+            for (int i = 0; i < n; i++)
             {
-                float x0 = i / 5f, x1 = (i + 1) / 5f;
-                buttons[i] = Ui.Button(bottom, labels[i], actions[i], 28);
-                buttons[i].Rect.Place(x0, 0, x1, 1, 12, 18, 12, 18);
+                float x0 = i / (float)n, x1 = (i + 1) / (float)n;
+                buttons[i] = Ui.Button(bottom, labels[i], actions[i], 26);
+                buttons[i].Rect.Place(x0, 0, x1, 1, 8, 18, 8, 18);
             }
             _work = buttons[0];
             _coin = buttons[1];
             _exchange = buttons[2];
             _lotto = buttons[3];
-            _rest = buttons[4];
+            _checkup = buttons[4];
+            _rest = buttons[5];
         }
 
         public void SetRoomShade(float alpha) => _roomShade.color = new Color(0, 0, 0, alpha);
@@ -260,9 +285,13 @@ namespace AllIn.Game.LoopScene
             _dayText.text = Texts.DayLabel(d.day) + "  " + Texts.SlotNames[(int)d.slot] + " <size=20><color=#8c8c94>" + Texts.SlotHours[(int)d.slot] + "</color></size>";
             _cashText.text = Texts.WalletBank + " " + Fmt.Won(d.bankCash);
             _assetText.text = Texts.Assets + " " + Fmt.Won(Loop.TotalAssets);
-            _body.Set(d.body);
+            _body.Set(d.body, d.bodyMax);
             _mental.Set(d.mental);
-            _roomText.text = Texts.RoomNames[(int)d.room];
+            _roomText.text = Texts.RoomNames[(int)d.room] + " · " + Texts.AgeLabel(Loop.Age);
+            var life = new StringBuilder();
+            if (d.healthDebt > 0) life.Append(Texts.HealthDebt + " " + d.healthDebt + "  ");
+            if (Loop.IsBankrupt) life.Append("<color=" + Ui.Hex(Palette.Down) + ">" + Texts.BankruptStatus + "</color>");
+            _lifeText.text = life.ToString();
 
             if (d.hasPosition)
             {
@@ -284,7 +313,9 @@ namespace AllIn.Game.LoopScene
             _coin.Interactable = alive;
             _exchange.Interactable = alive;
             _lotto.Interactable = alive && d.slot != Slot.Night;
-            _rest.Interactable = alive;
+            _rest.Interactable = alive && Loop.Check(RestAction.Instance).Ok;
+            _checkup.Interactable = alive && Loop.Check(CheckupAction.Instance).Ok;
+            _checkup.Label.text = Texts.ActCheckup + (d.healthDebt > 0 ? "\n<size=16>" + Texts.CheckupEffect(d.checkupProgress, Rules.CheckupsPerDebtRelief) + "</size>" : "");
             _rest.Label.text = (d.slot == Slot.Night ? Texts.ActSleep : Texts.ActRest) + " →";
 
             if (!_work.Interactable && alive && d.slot == Slot.Evening)

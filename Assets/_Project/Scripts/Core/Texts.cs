@@ -220,6 +220,58 @@ namespace AllIn.Core
         public const string HoldemQuick = "빠르게";
         public static string HoldemEquity(double eq) => "에퀴티 " + (eq * 100).ToString("F0") + "%";
 
+        // D (v0.4) life: age, bankruptcy (E9), voyage, health — all placeholder
+        public static string AgeLabel(int age) => age + "세";
+        public const string AtSea = "배 위다. 아무것도 할 수 없다.";
+        public const string VoyageForced = "출항이 정해졌다.";
+        public const string VoyageNotBankrupt = "파산 상태가 아니다.";
+        public const string E9Title = "파산";
+        public const string E9Body = "월세를 낼 돈도, 일주일 밥값도 없다.";
+        public static string E9Held(int days) => days > 0 ? days + "일째 버티는 중이다." : "";
+        public const string E9Forced = "더는 버틸 수 없다. 배를 탈 수밖에 없다.";
+        public const string E9Board = "원양어선을 탄다";
+        public const string E9Hold = "버틴다";
+        public const string E9Bankrupt = "파산 — 통장 잔고가 바닥났다.";
+        public const string VoyageConfirmTitle = "출항 전";
+        public const string VoyageConfirmBody = "6개월간 폰 없음 — 포지션을 정리하시겠습니까?";
+        public const string VoyageClose = "정리";
+        public const string VoyageLeave = "그대로 둔다";
+        public const string VoyageBoardTitle = "승선";
+        public static readonly string[] VoyageBoardLines =
+        {
+            "부두에 서 있다. 짐은 가방 하나.",
+            "휴대폰은 선사에 맡겼다.",
+            "배가 뜬다. 육지가 작아진다.",
+        };
+        public static readonly string[] VoyageSkipLines =
+        {
+            "1개월. 파도. 그물. 파도.",
+            "3개월. 날짜 세는 걸 그만뒀다.",
+            "5개월. 허리가 나간 것 같다.",
+            "6개월. 항구가 보인다.",
+        };
+        public const string VoyageReturnTitle = "귀항";
+        public static string VoyageReturnPay(long pay) => "통장에 " + Fmt.Won(pay) + " 입금.";
+        public const string VoyageMirror = "거울 속 얼굴이 낯설다. 몸이 예전 같지 않다.";
+        public const string VoyageBankExpired = "원룸 계약은 해지됐다. 고시원에서 다시 시작한다.";
+        public static string VoyageAge(int age) => "나이 " + age + "세.";
+        public const string VoyagePositionNone = "포지션은 없다.";
+        public static string VoyagePositionOpen(long value) => "방치한 포지션이 아직 살아 있다. 평가액 " + Fmt.Won(value);
+        public static string VoyagePositionLiquidated(long lost) => "방치한 포지션은 청산됐다. " + Fmt.Won(-lost);
+        public const string SickTitle = "병원";
+        public static string SickBody(long cost, int days) => "몸이 무너졌다. 병원비 " + Fmt.Won(cost) + ", " + days + "일 동안 누워 있는다.";
+        public const string ActCheckup = "검진·운동";
+        public const string CheckupDone = "검진을 받고 운동했다.";
+        public const string CheckupNoCash = "검진받을 돈이 없다.";
+        public static string CheckupEffect(int progress, int of) => "건강 관리 " + progress + "/" + of;
+        public const string BankruptStatus = "파산 상태";
+        public const string HealthDebt = "건강 부채";
+        public const string BodyMax = "체력 최대치";
+        public const string Age = "나이";
+        public const string VoyageCount = "원양어선 승선";
+        public const string E7Continue = "계속 살기";
+        public static string E7TitleMonth(int month) => month <= 1 ? E7Title : month + "개월차 정산";
+
         // HUD
         public const string Assets = "총자산";
         public const string Body = "체력";
