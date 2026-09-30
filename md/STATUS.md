@@ -5,9 +5,10 @@ _Single session-to-session context doc. Newest state at top._
 ## Current
 - Branch: `feat/loop-proto`. Remote `origin` = https://github.com/sml122900/AllIn (private). `main` and `feat/loop-proto` pushed 2026-09-25.
 - Stage: **v0.4 stage ① "원양어선·연속 인생" done** (2026-09-30) — see Log. The "one life 21→70" direction is in `md/VISION.md`; stages ②~⑥ are NOT started (do not pre-build). Rules: DESIGN.md Part D. Human play of v0.3 (Stage 8) and hold'em (Part C) is still pending — observations come from the user.
-- Unity compile: **verified** 2026-09-30 via batchmode (editor closed; unity-mcp had no tools this session): 0 errors, **204/204 EditMode tests** (202 Core+Holdem via the harness + 2 Game). Win64 build succeeds. Dev capture (`-allinShots`) was NOT re-run after the reply changes below.
+- Unity compile: **verified** 2026-09-30 via batchmode (editor closed; unity-mcp had no tools this session): 0 errors, **250/250 EditMode tests** (248 Core+Holdem via the harness + 2 Game; as of 9620fe9). Win64 build succeeds. Dev capture (`-allinShots`) was NOT re-run after the reply changes below.
 
 ## Next
+- **Rules and numbers are FROZEN until the user's human-play observations arrive; then tune.** The sim phase is over (see Findings): what remains cannot be measured with bots.
 - **Hold'em v2 human play (user):** `Holdem.unity` → Play (or the build with the dev flag), pick Kind / study / seed. Judge: is all-in-or-fold fun, does the ladder feel fair, is a Pub run ~5 min. Sim H says the chart bot does not beat the gut bot — see "Hold'em v2" section; numbers untouched, the user decides.
 - **Human play (user), v0.4:** play a run, press [계속 살기] at Day 30, then go broke (e.g. 100x all-in) and watch E9 → 원양어선 → 귀항. See "v0.4 observations" below for what to judge. Numbers stay as they are — tuning is the user's call.
 - Stage ② (per-phase time resolution + ending skeleton) is next on the roadmap — only when the user asks.
@@ -39,6 +40,8 @@ _Single session-to-session context doc. Newest state at top._
 - Pub ROI is negative even for ChartBot mostly because 2nd/3rd pay points valued at 0.
 
 ## Findings
+- **V3 mental recovery pace is right (confirmed, V3 stays).** Time in the hope-circuit band (mental ≥ 80) is 17–21% of slots; returning to ≥ 80 after a liquidation takes a median 42–51 days. The "median mental 100 at declaration" seen with LifeSense is sample bias (declared on a rent day after a long stable stretch), not the typical state.
+- **Sim phase closed.** Questions bots cannot answer, waiting for human play: E4 frequency, how the 8-second watch scene feels, how the liquidation chain feels, whether the hold-on choice is a real dilemma, hold'em all-in/fold tension and session time, how much to put on the exchange on Day 1.
 - Study effect is real: ChartBot vs Study-0 win rate 3x (Pub), 5x (Satellite), both significant.
 - Chart play reaches a fair seat, not an edge (Nash push/fold is unexploitable, not exploitative). Human edge must come from exploiting opponents.
 - Ladder economics as designed: Pub ROI ≈ −68% (points worth 0 → pub is a money sink), Satellite ≈ breakeven, Main = fair-seat lottery (0.6% win). Keep.
