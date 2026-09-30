@@ -162,6 +162,7 @@ namespace AllIn.Harness.Sim
             public long LottoSpent, LottoWon;
             public int WorkedSlots;
             public int HopeCircuits;
+            public int Starved;
             public int FirstLiquidationDay; // 0 = never
             // B5 v0.3 liquidation chain (sim E report)
             public int TailLiquidations;
@@ -178,10 +179,14 @@ namespace AllIn.Harness.Sim
         public static Func<MentalTuning> TuningFactory;
         static MentalTuning Tuning => TuningFactory?.Invoke();
 
+        /// <summary>Report-only control: turns hunger off so the old food rule can be compared (BankruptcyStudy).</summary>
+        public static bool StarveOff;
+
         public static Outcome Play(IPlayer player, long seed)
         {
             var loop = Loop.NewRun(seed);
             if (Tuning != null) loop.Tuning = Tuning;
+            if (StarveOff) loop.StarvationEnabled = false;
             loop.BankruptcyEnabled = false; // A~E are 30-day bots that never answer E9 (DESIGN.md D7); F below is the life sim
             var o = new Outcome();
             int guard = 0;
@@ -202,6 +207,7 @@ namespace AllIn.Harness.Sim
             o.LottoWon = s.lottoWon;
             o.WorkedSlots = s.workedSlots;
             o.HopeCircuits = s.hopeCircuits;
+            o.Starved = s.starved;
             o.TailLiquidations = s.tailLiquidations;
             o.WatchesShown = s.watchesShown;
             o.LiquidationsDuringLock = s.liquidationsDuringLock;
@@ -418,6 +424,7 @@ namespace AllIn.Harness.Sim
             }
 
             AppendLifeSim(sb, runs);
+            BankruptcyStudy.Append(sb, runs);
 
             Directory.CreateDirectory(Path.GetDirectoryName(reportPath));
             File.WriteAllText(reportPath, sb.ToString().Replace("\r\n", "\n"));

@@ -303,6 +303,11 @@ namespace AllIn.Core
                         PayFixedFromBank(Rules.FoodPerDay);
                         Data.stats.foodPaid++;
                     }
+                    else if (!StarvationEnabled)
+                    {
+                        PayFixedFromBank(Rules.FoodPerDay);   // measurement control only: the pre-hunger behaviour (pays what is there)
+                        Data.stats.foodPaid++;
+                    }
                     else // D3 (2026-09-30): can't pay for food -> go hungry (separate from bankruptcy)
                     {
                         AddBody(-Rules.StarveBody);
@@ -330,6 +335,9 @@ namespace AllIn.Core
 
         // Hooks filled in by the coin / lotto parts of this partial class.
         partial void OnTick();
+        /// <summary>Sim-only switch for the D-median control (report-only). Not saved; the game always has hunger on.</summary>
+        public bool StarvationEnabled { get; set; } = true;
+
         partial void OnNewDay();
         partial void OnSlotEnd();
 
