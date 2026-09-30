@@ -39,12 +39,36 @@ namespace AllIn.Core
         {
             var d = Data;
 
+            // D3 (2026-09-30): the back rent is paid, in full, on the first dawn the bank covers it
+            if (d.rentOwed > 0 && d.bankCash >= d.rentOwed)
+            {
+                d.bankCash -= d.rentOwed;
+                d.rentOwed = 0;
+                d.bankruptSinceDay = 0;
+                d.stats.rentPaid++;
+                Log(Texts.BankruptCleared);
+            }
+
             if (d.day >= d.nextRentDay)
             {
-                PayFixedFromBank(Rules.Rent);
-                d.stats.rentPaid++;
-                d.nextRentDay += Rules.RentIntervalDays;
-                Log(Texts.RentPaid);
+                d.nextRentDay += Rules.RentIntervalDays;   // the original calendar is kept whatever happens
+                if (!BankruptcyEnabled)
+                {
+                    PayFixedFromBank(Rules.Rent);          // the 30-day bots: pays what is there, no debt
+                    d.stats.rentPaid++;
+                    Log(Texts.RentPaid);
+                }
+                else
+                {
+                    long pay = Math.Min(d.bankCash, Rules.Rent);
+                    d.bankCash -= pay;                     // the whole bank goes to the rent first
+                    if (pay == Rules.Rent) { d.stats.rentPaid++; Log(Texts.RentPaid); }
+                    else
+                    {
+                        d.rentOwed += Rules.Rent - pay;
+                        if (d.bankruptSinceDay == 0) d.bankruptSinceDay = d.day;
+                    }
+                }
             }
 
             if (d.day >= d.nextHealthCheckDay)
@@ -55,9 +79,8 @@ namespace AllIn.Core
             }
 
             if (!BankruptcyEnabled) return;
-            if (TotalAssets < Rules.BankruptBelowAssets)
+            if (d.rentOwed > 0)
             {
-                if (d.bankruptSinceDay == 0) d.bankruptSinceDay = d.day;
                 int held = d.day - d.bankruptSinceDay;
                 // D3: the popup comes on the declaration day, once more on the 7th day, and forced on the 14th — the days
                 // in between are only the HUD countdown.
@@ -66,17 +89,13 @@ namespace AllIn.Core
                     Emit(new GameEvent
                     {
                         id = EventIds.Bankrupt,
-                        amount = TotalAssets,
+                        amount = d.rentOwed,
+                        amount2 = d.domesticCash + d.overseasCash + PendingTransferSum(),   // shown, never auto-sold
                         ints = new[] { ForcedVoyageDue ? 1 : 0 },
                         count = held,
                     });
                     Log(Texts.E9Bankrupt);
                 }
-            }
-            else if (d.bankruptSinceDay > 0)
-            {
-                d.bankruptSinceDay = 0;
-                Log(Texts.BankruptCleared);
             }
         }
 
@@ -179,6 +198,7 @@ namespace AllIn.Core
             d.e3AtSlot = -1;
             d.firedUntilDay = 0;
             d.bankruptSinceDay = 0;
+            d.rentOwed = 0;
             d.room = Room.Goshiwon;                                   // the one-room lease ended; a goshiwon for now
             d.roomRecheckDay = d.day + Rules.RentIntervalDays;
             d.nextRentDay = d.day + Rules.RentIntervalDays;

@@ -256,7 +256,7 @@ namespace AllIn.Core
         public const string VoyageForced = "출항이 정해졌다.";
         public const string VoyageNotBankrupt = "파산 상태가 아니다.";
         public const string E9Title = "파산";
-        public const string E9Body = "월세를 낼 돈도, 일주일 밥값도 없다.";
+        public const string E9Body = "월세를 내지 못했다.";
         public static string E9Held(int days) => days > 0 ? days + "일째 버티는 중이다." : "";
         public const string E9Forced = "더는 버틸 수 없다. 배를 탈 수밖에 없다.";
         public const string E9Board = "원양어선을 탄다";
@@ -294,9 +294,12 @@ namespace AllIn.Core
         public const string CheckupDone = "검진을 받고 운동했다.";
         public const string CheckupNoCash = "검진받을 돈이 없다.";
         public static string CheckupEffect(int progress, int of) => "건강 관리 " + progress + "/" + of;
-        public const string BankruptStatus = "파산 상태";
-        public static string BankruptCountdown(int held, int limit) => "파산 D+" + held + " / " + limit;
-        public const string BankruptCleared = "파산 상태에서 벗어났다.";
+        public const string BankruptStatus = "월세 미납";
+        public const string Starved = "식비가 없어 굶었다.";
+        public static string E9Owed(long owed) => "밀린 월세 " + Fmt.Won(owed);
+        public static string E9Exchange(long n) => "거래소에 " + Fmt.Won(n) + " 있음 (자동으로 처분되지 않는다)";
+        public static string BankruptCountdown(int held, int limit) => "월세 미납 D+" + held + " / " + limit;
+        public const string BankruptCleared = "밀린 월세를 냈다. 파산에서 벗어났다.";
         public const string HealthDebt = "건강 부채";
         public const string BodyMax = "체력 최대치";
         public const string Age = "나이";

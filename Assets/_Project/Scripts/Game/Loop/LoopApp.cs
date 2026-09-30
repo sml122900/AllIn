@@ -290,7 +290,7 @@ namespace AllIn.Game.LoopScene
             _roomText.text = Texts.RoomNames[(int)d.room] + " · " + Texts.AgeLabel(Loop.Age);
             var life = new StringBuilder();
             if (d.healthDebt > 0) life.Append(Texts.HealthDebt + " " + d.healthDebt + "  ");
-            if (Loop.IsBankrupt) life.Append("<color=" + Ui.Hex(Palette.Down) + ">" + Texts.BankruptStatus + " " + Texts.BankruptCountdown(Loop.BankruptDaysHeld, Rules.BankruptForcedAfterDays) + "</color>");
+            if (Loop.IsBankrupt) life.Append("<color=" + Ui.Hex(Palette.Down) + ">" + Texts.BankruptCountdown(Loop.BankruptDaysHeld, Rules.BankruptForcedAfterDays) + "</color>");
             _lifeText.text = life.ToString();
 
             if (d.hasPosition)

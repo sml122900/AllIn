@@ -53,8 +53,8 @@ _Single session-to-session context doc. Newest state at top._
 
 ## Open tuning (do NOT change until the user's Stage 8 / C7 play notes arrive)
 - Hold'em skill signal in the Pub **passes on paper only**: Pro 11.9% vs Station 11.5% is inside statistical noise. (Maniac winning most is not considered a defect.)
-- Post-liquidation mental spiral: −40 on liquidation can hit 0 within ~3 days with no recovery path (can't get up → job mistakes → fired).
-- Lotto miss −1 per purchase: 2 purchases/day alone erodes mental enough to cost the job (sim B works 23/30 shifts).
+- ~~Post-liquidation mental spiral~~ — **closed: resolved by V3** (sleep +5, 5-day streak +8; sim G, 2026-09-30).
+- ~~Lotto miss −1 per purchase eroding mental / sim B 23/30 shifts~~ — **closed: resolved by V3** (sim B now works 30/30 shifts).
 
 ## Open design
 - Candidate lever (undecided, after playtest): opponent-tendency notes unlocked by study/observation, so human exploitation (not HUD numbers) becomes the edge beyond fair seat.
@@ -122,6 +122,17 @@ _Single session-to-session context doc. Newest state at top._
 - Sim H (1,000 runs): chart vs gut — Pub 3 wins 35.4% vs 31.5% (z 1.8, just short), Sat 21.2% vs 17.3% (z 2.2 ✓), Main money-in/FT/podium ✓ (z 2.8/2.4/2.1), Main champion 1.3% vs 0.8% (z 1.1). Chart Main champion 1.3% (target ≈1%). Pub ≈ 24 hands ≈ 1.9 min by my per-hand guess (target ~5).
 - Separation: neither change alone opens a gap (ante only −0.9 / −0.7 / −1.0 z; average stacks only −1.3 / −0.9 / −1.0 z; rev.1 −0.2 / −1.1 / −1.8); together +1.8 / +2.2 / +1.1. They interact: ante makes folding cost, average stacks make stealing pay.
 - BB defence call rate: chart 22–23%, gut 30%, random 52%. Median bust stack ≈ 2.4–3.1bb (the hero gets busted while short).
+
+## V3 adopted + bankruptcy = unpaid rent + hunger (2026-09-30, user decisions; DESIGN.md D3/D9/B)
+- **V3 is the rule** (`Rules.SleepMental = 5`, streak 5 days → +8; `MentalTuning` default = V3, V0–V2 kept only for comparison sims). Tests that pinned +3 updated.
+- **Bankruptcy** now triggers on a rent day when the bank is below the rent: the whole bank goes in, the shortfall is `rentOwed`, E9 shows it plus "거래소에 N원 있음" (exchange money / positions never auto-sold). Released at the first dawn the bank covers the arrears in full; the rent calendar is kept; 14th-day dawn pays first, else forced ship; 7th-day re-confirm popup; HUD "월세 미납 D+N / 14". The old "assets < 534,000" test is deleted. `Loop.BankruptcyEnabled = false` (sims A~E) keeps the old rent behaviour (pays what is there).
+- **Hunger** (all modes): evening food when the bank < 12,000 → no payment, body −10, mental −5, log line.
+- Sim G (Day 31, bank 0, 1,000 runs, V3): start mental 20 → 7.6% released in 14 days, 30 → 21.7%, 40 → 82.7% (old V0: 2.6 / 2.6 / 10.0%). Release-time mental medians 43 / 53 / 63.
+- Sim F (5 voyages, all 1,000 complete now): median age at return 21.58 / 22.15 / 22.73 / 23.31 / 23.88 (previous trigger 21.50 / 22.00 / 22.51 / 23.02 / 23.53).
+- Sim A~E: A 20,738,000 exact, C 84.9% (both unchanged), **D median 7,712,281 → 5,980,032** (hunger: the D bot moves the whole bank to the exchange, so it starves), B 30/30 shifts. All acceptance criteria still PASS.
+- Job-only recovery from an empty bank clears the arrears on held day 12 (test), so working alone works with a small margin if mental holds.
+- Holdem rev.2 numbers approved; the BB +0.5bb deviation is now "confirmed" in DESIGN.md C-v2.
+- Tests 247/247 (harness 245 + Unity 2), 0 compile errors, Win64 build + `-allinShots` OK (E9 with exchange money, arrears countdown, hunger, release, ship).
 
 ## Log
 - 2026-09-30 v0.4 stage ① 원양어선·연속 인생: `md/VISION.md` (user quote verbatim + direction + roadmap), DESIGN.md Part D. Core `LoopLife.cs`: age = 21 + (day−1)/365; [계속 살기] (`BeginContinueLife`/`ContinueLife`), settlement every 30 days; dawn bankruptcy judgment (assets < 534,000 → E9); forced ship on the 7th day after the state began; `Depart(closePosition)` simulates all 900 slots silently; return = bank +15M, mental 50, body max −15 (floor 40), health debt +1, goshiwon; `CheckupAction` (day slot, 50,000, every 10th cancels 1 debt only while debt>0); illness roll every 30 days when debt>0 (no RNG draw at debt 0 → A~E streams untouched), hospital 1M~5M from the bank as available + 3 lost days. `Loop.BankruptcyEnabled` (headless switch, default on): sim A~E turn it off since a forced ship would stretch a 30-day bot to ~200 days; A is also tested with rules on. Sim A~E report numbers unchanged; new report-only sim F. 33 new tests. Game: age + health debt in the status row, body gauge shows the shrunken maximum, 6th button [검진·운동], E9 popup (choice / forced), position confirm before sailing, boarding + skip text, return scene, SICK popup, monthly settlement with [계속 살기] and new rows. **My interpretations where the spec was silent:** rent recurs every 30 days from Day 31 (needed for continuing life; month one unchanged); the forced ship still asks about the open position; "7 days held" = forced on the 7th day after the first declaration; check-up has no recovery effect; at sea lotto still draws (money to bank) with no popups, and E1/E2/E3/E8 are suppressed in favor of one return report; return charges no rent (next in 30 days) and the room stays goshiwon for 30 days; the ship also skips the settlements it sails past.

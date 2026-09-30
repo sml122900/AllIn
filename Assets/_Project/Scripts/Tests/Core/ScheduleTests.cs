@@ -80,7 +80,7 @@ namespace AllIn.Core.Tests
             int body = loop.Data.body;
             loop.Pass(); // sleep
             Assert.AreEqual(body + 30, loop.Data.body);
-            Assert.AreEqual(mental + 3, loop.Data.mental);
+            Assert.AreEqual(mental + Rules.SleepMental, loop.Data.mental);
         }
 
         [Test]

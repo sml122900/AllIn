@@ -62,7 +62,9 @@ namespace AllIn.Core
         // B7 rest / sleep
         public const int RestBody = 5;
         public const int SleepBody = 30;
-        public const int SleepMental = 3;
+        public const int SleepMental = 5;                   // V3 (adopted 2026-09-30): sleep +5, so shift + sleep = +1 a day
+        public const int WorkStreakDays = 5;                // V3: this many mistake-free worked days in a row pay WorkStreakBonus
+        public const int WorkStreakBonus = 8;
         public const int AllNighterMental = 5;
 
         // B8 gauges
@@ -96,7 +98,7 @@ namespace AllIn.Core
         public const int StartAge = 21;
         public const int DaysPerYear = 365;
         public const int RentIntervalDays = 30;             // D2: rent recurs every 30 days once the run continues past Day 30
-        public const long BankruptBelowAssets = Rent + 7 * FoodPerDay; // D3: rent + 7 days of food
+        public const int StarveBody = 10, StarveMental = 5; // D3: no food money in the evening
         public const int BankruptForcedAfterDays = 14;      // D3: still bankrupt this many days after the first declaration -> forced voyage
         public const int BankruptReconfirmAfterDays = 7;    // D3: the choice popup comes once more on this day of holding on
         public const int VoyageDays = 180;                  // D4: six months

@@ -123,10 +123,10 @@ namespace AllIn.Game.Dev
             {
                 var loop = app.Loop;
                 var d = loop.Data;
-                d.bankCash = 0; d.domesticCash = 0; d.overseasCash = 0; d.pendingTransfers.Clear();
-                d.hasPosition = true;
-                d.position = CoinRules.Open(Direction.Long, 5, 200_000, d.price, loop.AbsSlot);
+                // 1) rent falls due tomorrow with an empty bank (money left on the exchange only) -> E9 -> hold on
+                d.bankCash = 0; d.domesticCash = 0; d.overseasCash = 300_000; d.pendingTransfers.Clear();
                 d.healthDebt = 0;
+                d.nextRentDay = d.day + 1;
                 app.Save();
                 app.Refresh();
                 int g2 = 0;
@@ -141,6 +141,47 @@ namespace AllIn.Game.Dev
                 yield return Wait(1.0f);
                 _captured.Add(EventIds.Bankrupt);
                 yield return Shot("event_E9");
+                ClickButtonByLabel(app, Texts.E9Hold);
+                yield return Wait(0.5f);
+                yield return Shot("arrears_countdown_hud");
+                // 2) two hungry days (the bank is empty, so the evening meal can't be paid)
+                for (int i = 0; i < 8; i++)
+                {
+                    app.Perform(RestAction.Instance);
+                    yield return WatchIfShowing(app);
+                    yield return null;
+                    yield return DrainUntilBankrupt(app);
+                }
+                yield return Shot("starved_hud");
+                // 3) the arrears get paid: released
+                d.bankCash = d.rentOwed + 3 * Rules.FoodPerDay;
+                app.Refresh();
+                int g3 = 0;
+                while (g3++ < 12 && loop.IsBankrupt)
+                {
+                    app.Perform(RestAction.Instance);
+                    yield return null;
+                    yield return DrainUntilBankrupt(app);
+                }
+                yield return Wait(0.4f);
+                yield return Shot("arrears_released_hud");
+                // 4) broke again -> E9 -> the ship
+                d.bankCash = 0; d.domesticCash = 0; d.overseasCash = 300_000; d.pendingTransfers.Clear();
+                d.nextRentDay = d.day + 1;
+                d.hasPosition = true;
+                d.position = CoinRules.Open(Direction.Long, 5, 200_000, d.price, loop.AbsSlot);
+                app.Save();
+                app.Refresh();
+                g2 = 0;
+                while (g2++ < 40 && !(loop.HasEvent && d.pendingEvents.Any(e => e.id == EventIds.Bankrupt)))
+                {
+                    app.Perform(RestAction.Instance);
+                    yield return WatchIfShowing(app);
+                    yield return null;
+                    yield return DrainUntilBankrupt(app);
+                }
+                yield return DrainUntilBankrupt(app);
+                yield return Wait(0.6f);
                 ClickButtonByLabel(app, Texts.E9Board);
                 yield return Wait(0.5f);
                 if (d.hasPosition)

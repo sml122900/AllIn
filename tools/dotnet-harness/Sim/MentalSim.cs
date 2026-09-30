@@ -15,24 +15,23 @@ namespace AllIn.Harness.Sim
 
         public sealed class HoldResult { public bool Success; public int Mental; }
 
-        /// <summary>Bankruptcy declared on a seed-random day 1..30 (assets 0 from Day 1 on); mental set at the declaration; the bot works
-        /// every evening (rest when refused). Success = cleared within Grace days. Mental is read at the release, or at held day Grace.</summary>
-        public static HoldResult HoldOn(long seed, int startMental, string variant, bool rent = true)
+        /// <summary>Starts on the dawn of the Day 31 rent with an empty bank (nothing anywhere): the arrears are declared, E9 shows.
+        /// Mental is set at the declaration. Bot: evening shift every day (rest when refused), no coin, no lotto.
+        /// Success = the arrears are paid within Grace days (the release check runs first each dawn).</summary>
+        public static HoldResult HoldOn(long seed, int startMental, string variant)
         {
             var loop = Loop.NewRun(seed);
             loop.PopEvent(); loop.PopEvent();
             loop.Tuning = MentalTuning.ByName(variant);
-            loop.ForcedAfterDays = int.MaxValue / 2;     // we stop by hand at held day Grace; the release check runs first each dawn
+            loop.ForcedAfterDays = int.MaxValue / 2;     // we stop by hand at held day Grace
             var d = loop.Data;
-            int startDay = new Xoshiro128((ulong)seed * 7919UL + 13UL).NextInt(1, 31);
             loop.BankruptcyEnabled = false;
-            Zero(d);
             int guard = 0;
-            while (d.day < startDay && guard++ < 5000) { Zero(d); Step(loop, d); }
+            while (d.day < 30 && guard++ < 5000) { Zero(d); Step(loop, d); }
             loop.BankruptcyEnabled = true;
+            Zero(d);
             while (!loop.IsBankrupt && guard++ < 5000) { Zero(d); Step(loop, d); }
             d.mental = startMental;
-            if (!rent) d.nextRentDay = int.MaxValue;
             while (loop.IsBankrupt && loop.BankruptDaysHeld < Grace && guard++ < 20_000) Step(loop, d);
             return new HoldResult { Success = !loop.IsBankrupt, Mental = d.mental };
         }
@@ -60,20 +59,17 @@ namespace AllIn.Harness.Sim
             var sb = new StringBuilder();
             sb.AppendLine("# SIM_MENTAL — 멘탈 회복 경로 후보 비교 (보고 전용)");
             sb.AppendLine();
-            sb.AppendLine("> 생성: `dotnet run --project tools/dotnet-harness -- sim mental`. 손으로 고치지 말 것. 규칙 기본값은 V0(현재) 그대로이며 변형은 sim 파라미터(`MentalTuning`)로만 주입한다.");
-            sb.AppendLine("> V0 현재 / V1 잠 +3→+5 / V2 알바 실수 없이 5일 연속마다 mental +8 (실수·잘림·결근이면 카운트 리셋) / V3 = V1 + V2.");
+            sb.AppendLine("> 생성: `dotnet run --project tools/dotnet-harness -- sim mental`. 손으로 고치지 말 것. **규칙 기본값은 2026-09-30부터 V3**이고 변형은 비교용 sim 파라미터(`MentalTuning`)로 주입한다.");
+            sb.AppendLine("> V0 옛 규칙 / V1 잠 +3→+5 / V2 알바 실수 없이 5일 연속마다 mental +8 (실수·잘림·결근이면 카운트 리셋) / V3 = V1 + V2.");
             sb.AppendLine();
-            sb.AppendLine("## G 버티기 — 유예 14일 고정, 각 셀 " + runs + "런, 파산 시작일은 Day 1~30 시드 랜덤");
+            sb.AppendLine("## G 버티기 — 월세 미납 파산(Day 31, 은행 0원) · 유예 14일 · 각 셀 " + runs + "런");
             sb.AppendLine();
-            sb.AppendLine("봇: 매일 저녁 알바(거절되면 쉬기), 코인·로또 없음. 시작 총자산 0. 성공 = 14일 안에 534,000원 초과. 해제 mental = 해제된 새벽의 mental 중앙값, 실패 mental = 14일째 새벽 mental 중앙값.");
+            sb.AppendLine("시작: Day 31 새벽에 은행이 비어 밀린 월세 450,000원으로 파산 선언. 시작 mental만 지정. 봇: 매일 저녁 알바(거절되면 쉬기), 코인·로또 없음, 식비를 못 내면 굶음(body −10, mental −5). 성공 = 14일 안에 밀린 월세 전액 납부. 해제 mental = 해제된 새벽의 mental 중앙값, 실패 mental = 14일째 새벽 mental 중앙값. V0은 참고용(옛 잠 +3·연속 보너스 없음).");
             sb.AppendLine();
             sb.AppendLine("| 시작 mental | 변형 | 성공률 | 해제 시점 mental 중앙 | 실패 런 14일째 mental 중앙 |");
             sb.AppendLine("|---|---|---|---|---|");
             foreach (int m in new[] { 20, 30, 40 })
-            {
-                foreach (var v in Variants) Row(sb, runs, m, v, v, true);
-                foreach (var v in Variants) Row(sb, runs, m, v, v + ", 월세 없음(대조)", false);
-            }
+                foreach (var v in new[] { "V3", "V0" }) Row(sb, runs, m, v);
 
             sb.AppendLine();
             sb.AppendLine("## 부작용 — A~E를 변형별로 (30일 봇, 파산 판정 off)");
@@ -105,13 +101,13 @@ namespace AllIn.Harness.Sim
             return true;
         }
 
-        static void Row(StringBuilder sb, int runs, int mental, string variant, string label, bool rent)
+        static void Row(StringBuilder sb, int runs, int mental, string variant)
         {
-            var rs = Enumerable.Range(1, runs).Select(sd => HoldOn(sd, mental, variant, rent)).ToList();
+            var rs = Enumerable.Range(1, runs).Select(sd => HoldOn(sd, mental, variant)).ToList();
             var ok = rs.Where(r => r.Success).ToList();
             var bad = rs.Where(r => !r.Success).ToList();
             string F(double v) => double.IsNaN(v) ? "—" : v.ToString("F0");
-            sb.AppendLine($"| {mental} | {label} | {LoopSim.Pct(ok.Count / (double)runs)} | {F(Median(ok.Select(r => r.Mental)))} | {F(Median(bad.Select(r => r.Mental)))} |");
+            sb.AppendLine($"| {mental} | {variant} | {LoopSim.Pct(ok.Count / (double)runs)} | {F(Median(ok.Select(r => r.Mental)))} | {F(Median(bad.Select(r => r.Mental)))} |");
         }
     }
 }

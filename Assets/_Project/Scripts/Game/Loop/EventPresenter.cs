@@ -398,7 +398,8 @@ namespace AllIn.Game.LoopScene
             var scrim = Scrim(new Color(0.06f, 0.02f, 0.02f, 0.92f));
             var panel = Panel(scrim, 760, 400);
             Ui.Text(panel, Texts.E9Title, 44, Palette.Down, TextAlignmentOptions.Center, true).rectTransform.Place(0, 1, 1, 1, 20, -90, 20, 24);
-            var lines = new List<string> { Texts.E9Body, Texts.Assets + " " + Fmt.Won(e.amount) };
+            var lines = new List<string> { Texts.E9Body, Texts.E9Owed(e.amount) };
+            if (e.amount2 > 0) lines.Add(Texts.E9Exchange(e.amount2));
             if (forced) lines.Add(Texts.E9Forced);
             else if (e.count > 0) lines.Add(Texts.E9Held(e.count));
             Ui.Text(panel, string.Join("\n", lines), 26, align: TextAlignmentOptions.Center).rectTransform.Place(0, 1, 1, 1, 30, -260, 30, 110);

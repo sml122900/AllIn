@@ -298,8 +298,18 @@ namespace AllIn.Core
                     }
                     break;
                 case Slot.Evening:
-                    PayFixedFromBank(Rules.FoodPerDay);
-                    Data.stats.foodPaid++;
+                    if (Data.bankCash >= Rules.FoodPerDay)
+                    {
+                        PayFixedFromBank(Rules.FoodPerDay);
+                        Data.stats.foodPaid++;
+                    }
+                    else // D3 (2026-09-30): can't pay for food -> go hungry (separate from bankruptcy)
+                    {
+                        AddBody(-Rules.StarveBody);
+                        AddMental(-Rules.StarveMental);
+                        Data.stats.starved++;
+                        Log(Texts.Starved);
+                    }
                     break;
             }
         }

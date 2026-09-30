@@ -25,17 +25,20 @@ namespace AllIn.Core.Tests
         }
 
         [Test]
-        public void DefaultTuning_IsV0_TheCurrentRules()
+        public void DefaultTuning_IsV3_TheAdoptedRules()
         {
             var t = Fresh(1).Tuning;
-            Assert.AreEqual(Rules.SleepMental, t.SleepMental);
-            Assert.AreEqual(0, t.StreakDays);
+            Assert.AreEqual(5, t.SleepMental);
+            Assert.AreEqual(5, t.StreakDays);
+            Assert.AreEqual(8, t.StreakBonus);
+            Assert.AreEqual(5, Rules.SleepMental);
         }
 
         [Test]
         public void V0_WorkPlusSleep_IsMinusOneMentalPerDay()
         {
             var loop = Fresh(2);
+            loop.Tuning = MentalTuning.V0();
             int before = loop.Data.mental;
             SleepThroughDay(loop, true);
             Assert.AreEqual(before - 1, loop.Data.mental);
@@ -99,7 +102,7 @@ namespace AllIn.Core.Tests
         }
 
         [Test]
-        public void V0_JobOnlyRun_IsUnchanged()
+        public void JobOnlyRun_MoneyIsUnaffectedByTheMentalRules()
         {
             var loop = Fresh(7);
             int guard = 0;

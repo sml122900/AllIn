@@ -56,6 +56,7 @@ namespace AllIn.Core
         public int firedUntilDay;
 
         // life (D, v0.4)
+        public long rentOwed;                                      // D3: unpaid rent from the day the bank could not cover it (0 = not bankrupt)
         public int nextRentDay = 1 + Rules.RentIntervalDays;      // D2: next Day on which rent is charged (at dawn)
         public int roomRecheckDay;                                  // D4: room is not re-judged before this Day (0 = always)
         public int bankruptSinceDay;                                // D3: 0 = not bankrupt; else the Day the state began
@@ -164,6 +165,7 @@ namespace AllIn.Core
         // schedule bookkeeping (tests / sims)
         public int rentPaid;
         public int foodPaid;
+        public int starved;
         public int lottoDraws;
         public int slotsPlayed;
     }
