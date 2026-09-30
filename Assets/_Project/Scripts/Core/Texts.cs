@@ -296,6 +296,9 @@ namespace AllIn.Core
         public static string CheckupEffect(int progress, int of) => "건강 관리 " + progress + "/" + of;
         public const string BankruptStatus = "월세 미납";
         public const string Starved = "식비가 없어 굶었다.";
+        public static string StarvedExchange(long n) => "거래소엔 " + Fmt.Won(n) + " 있음.";
+        public const string HungerTitle = "굶주림";
+        public static string HungerBody(int days, long onExchange) => days + "일째 굶고 있다." + (onExchange >= Rules.FoodPerDay ? "\n" + StarvedExchange(onExchange) : "");
         public static string E9Owed(long owed) => "밀린 월세 " + Fmt.Won(owed);
         public static string E9Exchange(long n) => "거래소에 " + Fmt.Won(n) + " 있음 (자동으로 처분되지 않는다)";
         public static string BankruptCountdown(int held, int limit) => "월세 미납 D+" + held + " / " + limit;

@@ -56,6 +56,7 @@ namespace AllIn.Core
         public int firedUntilDay;
 
         // life (D, v0.4)
+        public int starveStreak, lastStarveDay;                     // consecutive hungry days (3 -> one popup)
         public long rentOwed;                                      // D3: unpaid rent from the day the bank could not cover it (0 = not bankrupt)
         public int nextRentDay = 1 + Rules.RentIntervalDays;      // D2: next Day on which rent is charged (at dawn)
         public int roomRecheckDay;                                  // D4: room is not re-judged before this Day (0 = always)
@@ -197,6 +198,7 @@ namespace AllIn.Core
         public const string Ghost = "E8";
         public const string Bankrupt = "E9";
         public const string Sick = "SICK";
+        public const string Hunger = "HUNGER";
         public const string VoyageReturn = "VOYAGE_RETURN";
         public const string Fired = "FIRED";
         public const string CantGetUp = "CANT_GET_UP";

@@ -72,6 +72,7 @@ namespace AllIn.Game.LoopScene
                 case EventIds.Ghost: return Ghost(e);
                 case EventIds.Bankrupt: return Bankrupt(e);
                 case EventIds.Sick: return Popup(Texts.SickTitle, new[] { Texts.SickBody(e.amount, e.count) }, Texts.Confirm);
+                case EventIds.Hunger: return Popup(Texts.HungerTitle, new[] { Texts.HungerBody(e.count, e.amount) }, Texts.Confirm);
                 case EventIds.VoyageReturn: return VoyageReturn(e);
                 case EventIds.Settlement: return Settlement(e);
                 case EventIds.Fired: return Popup(null, new[] { Texts.WorkMistake }, Texts.Confirm);

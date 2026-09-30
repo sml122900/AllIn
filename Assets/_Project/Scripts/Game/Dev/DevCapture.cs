@@ -145,11 +145,17 @@ namespace AllIn.Game.Dev
                 yield return Wait(0.5f);
                 yield return Shot("arrears_countdown_hud");
                 // 2) two hungry days (the bank is empty, so the evening meal can't be paid)
-                for (int i = 0; i < 8; i++)
+                for (int i = 0; i < 12; i++)
                 {
                     app.Perform(RestAction.Instance);
                     yield return WatchIfShowing(app);
                     yield return null;
+                    if (d.pendingEvents.Any(e => e.id == EventIds.Hunger) && !_captured.Contains("hunger"))
+                    {
+                        _captured.Add("hunger");
+                        yield return Wait(0.8f);
+                        yield return Shot("hunger_popup");
+                    }
                     yield return DrainUntilBankrupt(app);
                 }
                 yield return Shot("starved_hud");

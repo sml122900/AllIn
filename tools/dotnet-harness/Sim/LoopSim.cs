@@ -46,7 +46,8 @@ namespace AllIn.Harness.Sim
             if (!deposited)
             {
                 deposited = true;
-                loop.TransferBankToDomestic(d.bankCash);
+                long amt = LifeSense.CapMove(loop, d.bankCash);
+                if (amt > 0) loop.TransferBankToDomestic(amt);
                 return;
             }
             if (!loop.DomesticLocked && d.domesticCash > 0) loop.TransferDomesticToOverseas(d.domesticCash);
@@ -109,6 +110,7 @@ namespace AllIn.Harness.Sim
             public void PlaySlot(Loop loop)
             {
                 var d = loop.Data;
+                LifeSense.Tick(loop);
                 if (!_deposited) { SweepToOverseas(loop, ref _deposited); WorkOrRest(loop); return; }
                 if (!loop.DomesticLocked && d.domesticCash > 0) loop.TransferDomesticToOverseas(d.domesticCash);
 
@@ -132,8 +134,11 @@ namespace AllIn.Harness.Sim
                     return;
                 }
 
-                if (!loop.DomesticLocked && d.domesticCash <= 0 && d.overseasCash <= 0 && d.bankCash > 0)
-                    loop.TransferBankToDomestic(d.bankCash / 2);
+                if (!loop.DomesticLocked && d.domesticCash <= 0 && d.overseasCash <= 0 && d.bankCash > 0 && (!LifeSense.On || d.bankCash / 2 > 0))
+                {
+                    long amt = LifeSense.CapMove(loop, d.bankCash / 2);
+                    if (amt > 0) loop.TransferBankToDomestic(amt);
+                }
 
                 WorkOrRest(loop);
             }

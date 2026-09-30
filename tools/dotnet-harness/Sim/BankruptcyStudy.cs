@@ -20,6 +20,7 @@ namespace AllIn.Harness.Sim
             public int DaysSinceLiquidation = -1;   // -1: no liquidation before the declaration
             public int Day;
             public bool Released;
+            public int Starved;
         }
 
         /// <summary>Plays the bot with bankruptcy on (V3 default) until the first E9 declaration or maxDay, then a job-only bot holds on.</summary>
@@ -55,9 +56,11 @@ namespace AllIn.Harness.Sim
                         if (loop.Finished) loop.ContinueLife(); else LoopSim.WorkOrRest(loop);
                     }
                     r.Released = !loop.IsBankrupt;
+                    r.Starved = d.stats.starved;
                     return r;
                 }
             }
+            r.Starved = d.stats.starved;
             return r;
         }
 
@@ -67,10 +70,14 @@ namespace AllIn.Harness.Sim
         static Func<Loop, Action<Loop>> FBot => _ => l =>
         {
             var d = l.Data;
+            LifeSense.Tick(l);
             if (!l.DomesticLocked && d.domesticCash > 0) l.TransferDomesticToOverseas(d.domesticCash);
             if (!d.hasPosition && d.overseasCash > 0 && l.Do(new CoinOpenAction(Direction.Long, 100, d.overseasCash)).Ok) return;
             if (!d.hasPosition && d.overseasCash <= 0 && d.domesticCash <= 0 && d.pendingTransfers.Count == 0 && d.bankCash > 0)
-                l.TransferBankToDomestic(d.bankCash);
+            {
+                long amt = LifeSense.CapMove(l, d.bankCash);
+                if (amt > 0) l.TransferBankToDomestic(amt);
+            }
             if (d.hasPosition) l.Pass(); else LoopSim.WorkOrRest(l);
         };
 
@@ -85,25 +92,27 @@ namespace AllIn.Harness.Sim
         public static void Append(StringBuilder sb, int runs)
         {
             sb.AppendLine();
-            sb.AppendLine("## H 측정 — 파산 선언 순간 (e056a0e 회신, 보고 전용·규칙 변경 없음)");
+            sb.AppendLine("## H 측정 — 파산 선언 순간 (보고 전용·규칙 변경 없음; LifeSense 행은 742fe1d 회신)");
             sb.AppendLine();
-            sb.AppendLine("파산 on + V3 기본. E 봇(청산 체인)·F 봇(100배 올인 반복)을 첫 E9 파산 선언까지 굴린 뒤(E 최대 730일, F 최대 800일), 그 상태 그대로 **알바만 하는 봇**이 14일 유예 안에 밀린 월세를 내는지 본다(열린 포지션·거래소 잔고는 손대지 않음, 굶음 적용). 청산 → 선언 일수 = 선언일 − 마지막 청산일(그 전에 청산이 있었던 런만).");
+            sb.AppendLine("파산 on + V3 기본. E 봇(청산 체인)·F 봇(100배 올인 반복)을 첫 E9 파산 선언까지 굴린 뒤(E 최대 730일, F 최대 800일), 그 상태 그대로 **알바만 하는 봇**이 14일 유예 안에 밀린 월세를 내는지 본다(열린 포지션·거래소 잔고는 손대지 않음, 굶음 적용). **LifeSense** 행: 은행에 (다음 월세 + 식비 30일분 = 810,000원)을 남기고만 거래소로 옮기고, 저녁 식비 전 은행이 모자라면 거래소에서 출금을 시작하고, 파산 선언 시 지갑 여유분으로 밀린 월세를 채울 수 있으면 즉시 출금한다(각 이체는 정상 지연 규칙). 평균 굶음은 관찰 구간(선언 전 + 버티기 14일) 전체. 청산 → 선언 일수 = 선언일 − 마지막 청산일(그 전에 청산이 있었던 런만).");
             sb.AppendLine();
-            sb.AppendLine("| 봇 | 파산 선언한 런 | 선언 시점 mental p10 / p50 / p90 | 청산 → 선언 일수 중앙 (p10 / p90, n) | 선언일 중앙 | 버티기 해제 성공률 |");
-            sb.AppendLine("|---|---|---|---|---|---|");
-            foreach (var (name, bot, maxDay) in new[] { ("E 청산 체인", EBot, 730), ("F 100배 올인 반복", FBot, 800) })
+            sb.AppendLine("| 봇 | 파산 선언한 런 | 선언 시점 mental p10 / p50 / p90 | 청산 → 선언 일수 중앙 (p10 / p90, n) | 선언일 중앙 | 버티기 해제 성공률 | 런당 평균 굶음 |");
+            sb.AppendLine("|---|---|---|---|---|---|---|");
+            foreach (var (name, bot, maxDay, sense) in new[] { ("E 청산 체인", EBot, 730, false), ("F 100배 올인 반복", FBot, 800, false), ("E + LifeSense", EBot, 730, true), ("F + LifeSense", FBot, 800, true) })
             {
+                LifeSense.On = sense;
                 var rs = new List<Declared>(runs);
                 for (int seed = 1; seed <= runs; seed++) rs.Add(Study(bot, seed, maxDay));
+                LifeSense.On = false;
                 var dec = rs.Where(x => x.Happened).ToList();
                 var mental = dec.Select(x => x.Mental).ToList();
                 var gap = dec.Where(x => x.DaysSinceLiquidation >= 0).Select(x => x.DaysSinceLiquidation).ToList();
                 var day = dec.Select(x => x.Day).ToList();
                 string rel = dec.Count > 0 ? LoopSim.Pct(dec.Count(x => x.Released) / (double)dec.Count) : "—";
-                sb.AppendLine($"| {name} | {dec.Count} / {runs} | {F(Pctl(mental, 0.1))} / {F(Pctl(mental, 0.5))} / {F(Pctl(mental, 0.9))} | {F(Pctl(gap, 0.5))}일 ({F(Pctl(gap, 0.1))} / {F(Pctl(gap, 0.9))}, n={gap.Count}) | Day {F(Pctl(day, 0.5))} | {rel} |");
-                Console.WriteLine($"bankruptcy study {name}: declared {dec.Count}/{runs}, mental p50 {F(Pctl(mental, 0.5))}, released {rel}");
+                double starved = rs.Average(x => (double)x.Starved);
+                sb.AppendLine($"| {name} | {dec.Count} / {runs} | {F(Pctl(mental, 0.1))} / {F(Pctl(mental, 0.5))} / {F(Pctl(mental, 0.9))} | {F(Pctl(gap, 0.5))}일 ({F(Pctl(gap, 0.1))} / {F(Pctl(gap, 0.9))}, n={gap.Count}) | Day {F(Pctl(day, 0.5))} | {rel} | {starved.ToString("F1", CultureInfo.InvariantCulture)} |");
+                Console.WriteLine($"bankruptcy study {name}: declared {dec.Count}/{runs}, mental p50 {F(Pctl(mental, 0.5))}, released {rel}, starved {starved:F1}");
             }
-
             sb.AppendLine();
             sb.AppendLine("## D 중앙값 하락 원인 (굶음)");
             sb.AppendLine();

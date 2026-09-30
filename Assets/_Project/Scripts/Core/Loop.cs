@@ -313,7 +313,13 @@ namespace AllIn.Core
                         AddBody(-Rules.StarveBody);
                         AddMental(-Rules.StarveMental);
                         Data.stats.starved++;
-                        Log(Texts.Starved);
+                        Data.starveStreak = Data.lastStarveDay == Data.day - 1 && Data.starveStreak > 0 ? Data.starveStreak + 1 : 1;
+                        Data.lastStarveDay = Data.day;
+                        long onExchange = Data.domesticCash + Data.overseasCash + PendingTransferSum();   // shown, never withdrawn for the player
+                        if (Data.starveStreak == Rules.StarvePopupStreak)
+                            Emit(new GameEvent { id = EventIds.Hunger, amount = onExchange, count = Data.starveStreak });
+                        else
+                            Log(onExchange >= Rules.FoodPerDay ? Texts.Starved + " " + Texts.StarvedExchange(onExchange) : Texts.Starved);
                     }
                     break;
             }

@@ -98,7 +98,7 @@ namespace AllIn.Core
         public const int StartAge = 21;
         public const int DaysPerYear = 365;
         public const int RentIntervalDays = 30;             // D2: rent recurs every 30 days once the run continues past Day 30
-        public const int StarveBody = 10, StarveMental = 5; // D3: no food money in the evening
+        public const int StarveBody = 10, StarveMental = 5, StarvePopupStreak = 3; // D3: no food money in the evening
         public const int BankruptForcedAfterDays = 14;      // D3: still bankrupt this many days after the first declaration -> forced voyage
         public const int BankruptReconfirmAfterDays = 7;    // D3: the choice popup comes once more on this day of holding on
         public const int VoyageDays = 180;                  // D4: six months
