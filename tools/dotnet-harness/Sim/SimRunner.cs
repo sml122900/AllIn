@@ -21,6 +21,8 @@ namespace AllIn.Harness.Sim
                 ok &= LoopSim.Run(runs, Path.Combine(repoRoot, "md", "SIM_REPORT.md"));
             if (which == "all" || which == "holdem")
                 ok &= Holdem.HoldemSim.Run(runs, Path.Combine(repoRoot, "md", "SIM_HOLDEM.md"));
+            if (which == "mental")
+                ok &= MentalSim.Run(runs, Path.Combine(repoRoot, "md", "SIM_MENTAL.md"));
             return ok ? 0 : 1;
         }
     }

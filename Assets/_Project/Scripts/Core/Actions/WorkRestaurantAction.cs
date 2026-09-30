@@ -27,6 +27,7 @@ namespace AllIn.Core.Actions
             loop.AddBody(-Rules.RestaurantBodyCost);
             loop.AddMental(-Rules.RestaurantMentalCost);
             d.stats.workedSlots++;
+            loop.NoteShift(mistake);
             if (!mistake) return ActionResult.Done(Texts.WorkDone);
 
             d.firedUntilDay = d.day + Rules.FiredDays;

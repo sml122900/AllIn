@@ -147,7 +147,7 @@ namespace AllIn.Harness.Sim
             }
         }
 
-        static void WorkOrRest(Loop loop)
+        internal static void WorkOrRest(Loop loop)
         {
             if (loop.Data.slot == Slot.Evening && loop.Do(WorkRestaurantAction.Instance).Ok) return;
             loop.Pass();
@@ -161,6 +161,7 @@ namespace AllIn.Harness.Sim
             public int[] LottoRanks;
             public long LottoSpent, LottoWon;
             public int WorkedSlots;
+            public int HopeCircuits;
             public int FirstLiquidationDay; // 0 = never
             // B5 v0.3 liquidation chain (sim E report)
             public int TailLiquidations;
@@ -173,9 +174,14 @@ namespace AllIn.Harness.Sim
             public int Liq25, Liq100, Tail25, Tail100;
         }
 
+        /// <summary>Sim-only override of the mental-recovery variant (MentalSim). null = the rules as they are (V0).</summary>
+        public static Func<MentalTuning> TuningFactory;
+        static MentalTuning Tuning => TuningFactory?.Invoke();
+
         public static Outcome Play(IPlayer player, long seed)
         {
             var loop = Loop.NewRun(seed);
+            if (Tuning != null) loop.Tuning = Tuning;
             loop.BankruptcyEnabled = false; // A~E are 30-day bots that never answer E9 (DESIGN.md D7); F below is the life sim
             var o = new Outcome();
             int guard = 0;
@@ -195,6 +201,7 @@ namespace AllIn.Harness.Sim
             o.LottoSpent = s.lottoSpent;
             o.LottoWon = s.lottoWon;
             o.WorkedSlots = s.workedSlots;
+            o.HopeCircuits = s.hopeCircuits;
             o.TailLiquidations = s.tailLiquidations;
             o.WatchesShown = s.watchesShown;
             o.LiquidationsDuringLock = s.liquidationsDuringLock;
@@ -272,7 +279,7 @@ namespace AllIn.Harness.Sim
             return o;
         }
 
-        static IPlayer Make(string name) => name switch
+        internal static IPlayer Make(string name) => name switch
         {
             "A" => new JobOnly(),
             "B" => new LottoAndJob(),
@@ -411,7 +418,6 @@ namespace AllIn.Harness.Sim
             }
 
             AppendLifeSim(sb, runs);
-            AppendHoldOnSim(sb, runs);
 
             Directory.CreateDirectory(Path.GetDirectoryName(reportPath));
             File.WriteAllText(reportPath, sb.ToString().Replace("\r\n", "\n"));
@@ -459,60 +465,14 @@ namespace AllIn.Harness.Sim
             sb.AppendLine("해석 메모: 승선 1회 = 180일. 복귀 직후 판정이 생겨 반복 승선자도 매번 (건강 부채 × 10%)로 질병을 만난다. body 최대치는 5회에 25(알바 한계), 6회부터 20(하한, 알바 불가). 복귀 금액은 3회부터 −10%씩.");
         }
 
-        // ---- G: "버티기" (report-only) ----
-
-        /// <summary>Starts right after a whole-bank wipe-out was declared (assets 0, day 2 dawn), mental set to the given value.
-        /// Bot: evening shift every day (rest when the job is refused), no coin, no lotto. True = the state cleared before the ship.</summary>
-        public static bool HoldOn(long seed, int startMental, int graceDays)
-        {
-            var loop = Loop.NewRun(seed);
-            loop.PopEvent(); loop.PopEvent();
-            loop.ForcedAfterDays = graceDays;
-            var d = loop.Data;
-            d.bankCash = 0; d.domesticCash = 0; d.overseasCash = 0; d.pendingTransfers.Clear();
-            int guard = 0;
-            while (!loop.IsBankrupt && guard++ < 50) loop.Pass();
-            d.mental = startMental;
-            guard = 0;
-            while (loop.IsBankrupt && d.stats.voyages == 0 && guard++ < 20_000)
-            {
-                d.pendingEvents.Clear();
-                if (loop.Finished) loop.ContinueLife(); // the Day 30 settlement
-                else WorkOrRest(loop);
-            }
-            return !loop.IsBankrupt && d.stats.voyages == 0;
-        }
-
-        static void AppendHoldOnSim(StringBuilder sb, int runs)
-        {
-            sb.AppendLine();
-            sb.AppendLine("## G 버티기 (보고 전용 — 유예 값은 바꾸지 않음)");
-            sb.AppendLine();
-            sb.AppendLine("시작: 파산 선언 직후(총자산 0, 파산 선언 다음 새벽 Day 2), 시작 mental만 지정. 봇: 매일 저녁 알바(body<25 등으로 거절되면 쉬기), 코인·로또 없음. 성공 = 유예 안에 총자산이 534,000원을 넘어 파산 상태가 풀림. 각 셀 1,000런.");
-            sb.AppendLine();
-            int[] menta = { 20, 40, 60 };
-            int[] graces = { 14, 17, 21 };
-            sb.AppendLine("| 시작 mental / 유예 | " + string.Join(" | ", graces.Select(g => g + "일")) + " |");
-            sb.AppendLine("|---|" + string.Join("|", graces.Select(_ => "---")) + "|");
-            foreach (int m in menta)
-                sb.AppendLine($"| {m} | " + string.Join(" | ", graces.Select(g => Pct(Enumerable.Range(1, runs).Count(sd => HoldOn(sd, m, g)) / (double)runs))) + " |");
-            sb.AppendLine();
-            int[] wide = { 14, 17, 21, 24, 28, 35, 42, 56 };
-            sb.AppendLine("참고(목표 ≈ 50%를 찾기 위한 확장): 시작 mental 20, 유예를 더 늘리면");
-            sb.AppendLine();
-            sb.AppendLine("| 유예 | " + string.Join(" | ", wide.Select(g => g + "일")) + " |");
-            sb.AppendLine("|---|" + string.Join("|", wide.Select(_ => "---")) + "|");
-            sb.AppendLine("| 성공률 | " + string.Join(" | ", wide.Select(g => Pct(Enumerable.Range(1, runs).Count(sd => HoldOn(sd, 20, g)) / (double)runs))) + " |");
-        }
-
-        static long Percentile(IEnumerable<long> values, double p)
+        internal static long Percentile(IEnumerable<long> values, double p)
         {
             var sorted = values.OrderBy(v => v).ToArray();
             return sorted[(int)Math.Round(p * (sorted.Length - 1))];
         }
 
-        static string Won(long v) => Fmt.Won(v);
-        static string Pct(double r) => Fmt.Pct(r);
+        internal static string Won(long v) => Fmt.Won(v);
+        internal static string Pct(double r) => Fmt.Pct(r);
         static string Pass(bool ok) => ok ? "PASS" : "FAIL";
     }
 }

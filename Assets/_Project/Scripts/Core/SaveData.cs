@@ -41,6 +41,8 @@ namespace AllIn.Core
         public bool hasLastWin;
         public LastWin lastWin = new LastWin();
         public int hopeShownDay;
+        public int workStreak;   // consecutive mistake-free worked days (MentalTuning streak bonus)
+        public int lastWorkDay;
         public bool tilted;              // B5b: from liquidation until the next successful sleep
         public long lastLiquidationLoss; // committed + addedMargin lost, for the tilt recovery calculator
         public List<Ghost> ghosts = new List<Ghost>(); // B5d: tracked liquidated positions, up to 50 slots each

@@ -96,7 +96,13 @@ _Single session-to-session context doc. Newest state at top._
 - Sim F now runs to 5 voyages (report-only): median age at 5th return 23.53; 0-illness share by voyage 90.4 / 69.3 / 44.5 / 24.3 / 11.2%; body max 85/70/55/40/25. A, C, D unchanged (20,738,000 / 84.9% / 7,712,281).
 - Working tree: `Assets/_Recovery/` held only a default one-camera scene (0.unity, 2026-09-28) → deleted and gitignored. `CLAUDE.md` / `md/DEV.md` split adopted by the user and committed (4 removed items restored, VISION.md added to read order).
 
-## Sim G 버티기 (2026-09-30, report-only; grace stays 14 — the user decides)
+## Mental-recovery candidates (2026-09-30, report-only; defaults stay V0 until the user picks) — `md/SIM_MENTAL.md`, DESIGN.md D9
+- `MentalTuning` (Core, per-Loop, unsaved): V0 current / V1 sleep +5 / V2 5-day streak +8 / V3 both. Streak state `workStreak`/`lastWorkDay` added to SaveData (maintained always, only acts under V2/V3). 7 new tests; harness 209, Unity 211/211, 0 errors. V0 results identical (A 20,738,000 / C 84.9% / D 7,712,281). `sim mental` writes SIM_MENTAL.md; the old Day-2-start sim G in SIM_REPORT was replaced by it.
+- Grace 14, start day random 1–30, 1,000 runs. **Rent dominates, not mental, at mental ≥ 30:** the ceiling 53.3% = 16/30 start days (days 1–16); starting later puts the Day-31 rent (450,000) inside the 14 days and nothing can clear it. Rent-free control: V1/V3 100% at mental 30 and 40, V2 100% at 40 / 54.8% at 30.
+- Mental 20: V0 0.4% → V1 1.7% → V2 0.7% → V3 18.7% (36.1% rent-free). Mental 30 (with rent): V0 1.0%, V1 53.3%, V2 29.4%, V3 53.3%. Mental 40: V0 27.1%, V1/V2/V3 53.3%.
+- Side effects: A/C/D pass for all variants; A 20,738,000 exact for V1–V3. D hope circuits per run 0.39 (V0/V2) → 0.46 (V1/V3); E 0.00. B works 23.0 → 30.0 shifts (V1/V3), 29.8 (V2).
+
+## Sim G 버티기 — first version (2026-09-30, report-only; grace stays 14 — the user decides)
 - Start: assets 0 right after the declaration, bot = evening shift daily, rest when refused, no coin/lotto; success = state cleared inside the grace. 1,000 runs per cell. Table in SIM_REPORT.md.
 - mental 20: 14d 0.6% / 17d 0.6% / 21d 16.2% / 28d 30.3% / 42d 30.6% / **56d 53.8%** → ~50% needs roughly 50+ days. mental 40: 49.4% at 14–17d, 97.4% at 21d. mental 60: 100% everywhere.
 - Steps in the curve (14=17, 28=35=42) are consistent with the Day-31 rent (450,000, D8 item 1) wiping out about 11 shifts of progress for runs that start early in the month; unverified hypothesis — the rent timing depends on when in the month bankruptcy hits.

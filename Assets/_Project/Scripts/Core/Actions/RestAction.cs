@@ -25,7 +25,7 @@ namespace AllIn.Core.Actions
                 else
                 {
                     loop.AddBody(Rules.SleepBody);
-                    loop.AddMental(Rules.SleepMental);
+                    loop.AddMental(loop.Tuning.SleepMental);
                 }
                 d.tilted = false; // B5b: tilt ends at the next successful sleep, day-rest doesn't clear it
                 return ActionResult.Done(Texts.Slept);
