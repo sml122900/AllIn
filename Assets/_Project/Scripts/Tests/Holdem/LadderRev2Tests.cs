@@ -50,6 +50,21 @@ namespace AllIn.Holdem.Tests
         }
 
         [Test]
+        public void LadderEconomy_PubThreeWinsOf8_SatelliteSixWinsOf64_LogTwoOfTheField()
+        {
+            var pub = LadderConfig.For(TournamentKind.Pub);
+            var sat = LadderConfig.For(TournamentKind.Satellite);
+            Assert.AreEqual(8, pub.Field); Assert.AreEqual(3, pub.Steps[0].Wins); Assert.AreEqual(25_000, pub.EntryFee);
+            Assert.AreEqual(64, sat.Field); Assert.AreEqual(6, sat.Steps[0].Wins); Assert.AreEqual(HoldemRules.SatelliteFee, sat.EntryFee);
+            Assert.AreEqual(3, (int)System.Math.Log(pub.Field, 2));
+            Assert.AreEqual(6, (int)System.Math.Log(sat.Field, 2));
+            var l = new Ladder(sat, new Xoshiro128(1));
+            Assert.AreEqual(64, l.RemainingField(0));
+            Assert.AreEqual(2, l.RemainingField(5), "the bubble: the win before the seat");
+            Assert.AreEqual(1, l.RemainingField(6));
+        }
+
+        [Test]
         public void Steal_AwardsBothBlindsAndTheAnte_2p5Bb()
         {
             var l = Modern();

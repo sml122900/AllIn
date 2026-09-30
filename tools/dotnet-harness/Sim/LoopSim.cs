@@ -107,6 +107,8 @@ namespace AllIn.Harness.Sim
             /// <summary>Drift control (DriftSim): trade direction, and no job at all (coin only).</summary>
             public Direction Dir = Direction.Long;
             public bool NoWork;
+            /// <summary>Coin-net control (CoinNetSim): identical life (job, transfers, rent, hunger) but never opens a position.</summary>
+            public bool NoTrade;
             void Idle(Loop loop) { if (NoWork) loop.Pass(); else WorkOrRest(loop); }
             public int Liq25, Liq100, Tail25, Tail100; // per-leverage liquidation/tail breakdown (report-only, read after the run)
             public string Name => "E";
@@ -118,7 +120,7 @@ namespace AllIn.Harness.Sim
                 if (!_deposited) { SweepToOverseas(loop, ref _deposited); Idle(loop); return; }
                 if (!loop.DomesticLocked && d.domesticCash > 0) loop.TransferDomesticToOverseas(d.domesticCash);
 
-                if (!d.hasPosition && d.overseasCash > 0)
+                if (!d.hasPosition && d.overseasCash > 0 && !NoTrade)
                 {
                     int lev = _cyclesEntered == 0 ? 25 : 100;
                     int liqBefore = d.stats.liquidations, tailBefore = d.stats.tailLiquidations;
@@ -302,7 +304,7 @@ namespace AllIn.Harness.Sim
             return o;
         }
 
-        internal static IPlayer MakeChain(Direction dir, bool noWork) => new LiquidationChain { Dir = dir, NoWork = noWork };
+        internal static IPlayer MakeChain(Direction dir, bool noWork, bool noTrade = false) => new LiquidationChain { Dir = dir, NoWork = noWork, NoTrade = noTrade };
 
         internal static IPlayer Make(string name) => name switch
         {

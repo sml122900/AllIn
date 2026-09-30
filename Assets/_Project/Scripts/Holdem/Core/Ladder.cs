@@ -63,8 +63,8 @@ namespace AllIn.Holdem
                 case TournamentKind.Satellite:
                     return new LadderConfig
                     {
-                        Kind = kind, Field = 16, StudyLevel = studyLevel, EntryFee = HoldemRules.SatelliteFee,
-                        Steps = new[] { new LadderStep(4, LadderStage.Seat, new Prize(PrizeType.Seat, 1, 1), true) },
+                        Kind = kind, Field = 64, StudyLevel = studyLevel, EntryFee = HoldemRules.SatelliteFee,   // required wins ~ log2(field)
+                        Steps = new[] { new LadderStep(6, LadderStage.Seat, new Prize(PrizeType.Seat, 1, 1), true) },
                         Reentry = new ReentryRule { Allowed = true, UntilLevel = HoldemRules.ReentryUntilLevel, Cost = HoldemRules.SatelliteFee },
                         Roster = MakeRoster(2, 2, 2, 2),
                     };
