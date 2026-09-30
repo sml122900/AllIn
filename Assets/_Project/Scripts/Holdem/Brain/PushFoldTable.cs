@@ -5,31 +5,31 @@ namespace AllIn.Holdem.Brain
     public enum TablePosition { UTG = 0, MP, CO, BTN, SB, BB }
 
     /// <summary>
-    /// Short-stack (≤ 15bb) push/fold ranges, top % of hands (DESIGN.md C4). Nash-ish approximations — the only hard
+    /// Push/fold ranges for 3–35bb (columns 20/25/35 added for the v2 ladder; the v1 bots still only use ≤ 15bb), top % of hands (DESIGN.md C4). Nash-ish approximations — the only hard
     /// requirement is monotonicity: later position → wider, shorter stack → wider. Values between columns are interpolated.
     /// </summary>
     public static class PushFoldTable
     {
-        public static readonly int[] StackColumns = { 3, 5, 7, 10, 15 };
+        public static readonly int[] StackColumns = { 3, 5, 7, 10, 15, 20, 25, 35 };
 
         // rows: UTG, MP, CO, BTN, SB (opening shove)
         static readonly double[,] Push =
         {
-            { 40, 25, 18, 13, 9 },
-            { 48, 30, 22, 16, 11 },
-            { 60, 40, 30, 22, 16 },
-            { 75, 55, 42, 32, 24 },
-            { 90, 70, 55, 43, 33 },
+            { 40, 25, 18, 13, 9, 7, 6, 4 },
+            { 48, 30, 22, 16, 11, 9, 7, 5 },
+            { 60, 40, 30, 22, 16, 13, 10, 7 },
+            { 75, 55, 42, 32, 24, 19, 15, 11 },
+            { 90, 70, 55, 43, 33, 27, 22, 16 },
         };
 
         // rows: position of the shover being called
         static readonly double[,] Call =
         {
-            { 30, 18, 13, 10, 7 },
-            { 35, 21, 15, 12, 8 },
-            { 42, 26, 19, 14, 10 },
-            { 50, 32, 24, 18, 12 },
-            { 60, 40, 30, 22, 15 },
+            { 30, 18, 13, 10, 7, 5.5, 4.5, 3.5 },
+            { 35, 21, 15, 12, 8, 6.5, 5, 4 },
+            { 42, 26, 19, 14, 10, 8, 6.5, 5 },
+            { 50, 32, 24, 18, 12, 10, 8, 6 },
+            { 60, 40, 30, 22, 15, 12, 10, 8 },
         };
 
         /// <summary>Open-shove range (top %) for this position and effective stack in big blinds.</summary>

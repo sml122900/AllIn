@@ -23,7 +23,7 @@ namespace AllIn.Game.Dev
         /// <summary>Pushes every hand except the very worst: enough calls and steals to see every scene.</summary>
         sealed class PushHappy : ILadderPlayer
         {
-            public bool AllIn(LadderHand h) => HoldemLadder.HandPercentile(h) <= 60;
+            public bool AllIn(LadderHand h) => HoldemLadder.HandPercentile(h) <= (h.Kind == HandKind.Facing ? 30 : 60);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -72,7 +72,7 @@ namespace AllIn.Game.Dev
             Application.Quit();
         }
 
-        bool Enough() => _seen.Contains("steal") && _seen.Contains("call_won") && _seen.Contains("call_survived") && _seen.Contains("call_out") && _seen.Contains("bubble") && _seen.Contains("result");
+        bool Enough() => _seen.Contains("steal") && _seen.Contains("call_won") && _seen.Contains("call_survived") && _seen.Contains("call_out") && _seen.Contains("bubble") && _seen.Contains("bb_facing_shove") && _seen.Contains("result");
 
         IEnumerator Moment(string name)
         {

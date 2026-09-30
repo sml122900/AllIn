@@ -32,12 +32,16 @@ namespace AllIn.Harness.Sim.Holdem
         {
             public LadderStage Stage;
             public int Wins;
-            public int Hands, Pushes, Calls, CallWins, Steals, FreeBlinds, Folds, Reentries, BadBeats;
+            public int Hands, Pushes, Calls, CallWins, Steals, FreeBlinds, Folds, Reentries, BadBeats, BbFacing, BbCalls;
+            public List<double> BustBb;
         }
 
-        static Row Play(TournamentKind kind, string bot, long seed)
+        static Row Play(TournamentKind kind, string bot, long seed, bool ante = true, bool avg = true)
         {
-            var l = new Ladder(LadderConfig.For(kind, 4), new Xoshiro128((ulong)seed));
+            var cfg = LadderConfig.For(kind, 4);
+            cfg.BbAnte = ante;
+            cfg.AverageStacks = avg;
+            var l = new Ladder(cfg, new Xoshiro128((ulong)seed));
             ILadderPlayer p = bot == "직감" ? new GutBot() : bot == "차트" ? (ILadderPlayer)ChartPlayer.Instance : new RandomBot(seed);
             l.RunToEnd(p);
             var r = l.Result;
@@ -46,7 +50,14 @@ namespace AllIn.Harness.Sim.Holdem
             {
                 Stage = r.Stage, Wins = r.Wins, Hands = r.HandsPlayed, Pushes = pushes, Calls = r.CalledAllIns, CallWins = r.CalledWins,
                 Steals = r.Steals, FreeBlinds = r.FreeBlinds, Folds = r.Folds, Reentries = r.Reentries, BadBeats = r.BadBeats,
+                BbFacing = r.BbFacing, BbCalls = r.BbCalls, BustBb = r.BustBb,
             };
+        }
+
+        static string BustMedian(List<Row> l)
+        {
+            var all = l.SelectMany(r => r.BustBb).OrderBy(v => v).ToList();
+            return all.Count == 0 ? "—" : all[all.Count / 2].ToString("F1", CultureInfo.InvariantCulture);
         }
 
         static string P(double v) => (v * 100).ToString("F1", CultureInfo.InvariantCulture) + "%";
@@ -63,14 +74,19 @@ namespace AllIn.Harness.Sim.Holdem
             sb.AppendLine($"> 대회 종류별 × 봇 3종 × {runs}회(시드 1..{runs}). 리엔트리는 가능한 한 항상 한다. 직감 봇 = 포켓페어·A 포함·브로드웨이 두 장만 올인 / 차트 봇 = HUD 4 권고(푸시 상위 N%) 그대로 / 랜덤 봇 = 매 핸드 50% 올인.");
             sb.AppendLine("> **이 문서는 9인 풀 테이블 v1 시뮬레이션을 대체한다.** v1 결과는 `md/SIM_HOLDEM_V1.md`에 기록으로 남아 있다(게임 경로에서 쓰이지 않음).");
             sb.AppendLine();
-            var results = new Dictionary<(TournamentKind, string), List<Row>>();
-            foreach (var k in kinds)
-                foreach (var b in bots)
-                {
-                    var l = new List<Row>(runs);
-                    for (int s = 1; s <= runs; s++) l.Add(Play(k, b, s));
-                    results[(k, b)] = l;
-                }
+            Dictionary<(TournamentKind, string), List<Row>> Build(bool ante, bool avg)
+            {
+                var d = new Dictionary<(TournamentKind, string), List<Row>>();
+                foreach (var k in kinds)
+                    foreach (var b in bots)
+                    {
+                        var l = new List<Row>(runs);
+                        for (int s = 1; s <= runs; s++) l.Add(Play(k, b, s, ante, avg));
+                        d[(k, b)] = l;
+                    }
+                return d;
+            }
+            var results = Build(true, true);
 
             sb.AppendLine("## 단계 도달률 (대회 1회 = 리엔트리 포함 전체)");
             sb.AppendLine();
@@ -90,14 +106,14 @@ namespace AllIn.Harness.Sim.Holdem
             sb.AppendLine();
             sb.AppendLine("## 핸드·올인 통계 (런당 평균)");
             sb.AppendLine();
-            sb.AppendLine("| 대회 | 봇 | 총 핸드 | 올인 시도 | 콜 받은 올인 | 콜 올인 승률 | 스틸 비율(올인 중) | 폴드 | 리엔트리 | 배드빗 |");
-            sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|");
+            sb.AppendLine("| 대회 | 봇 | 총 핸드 | 올인 시도 | 스틸 성공 | 콜 받은 올인 | 콜 올인 승률 | 스틸 비율(올인 중) | 탈락 시 스택 중앙값(bb) | BB 방어 콜 비율 | 폴드 | 리엔트리 | 배드빗 |");
+            sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|");
             foreach (var k in kinds)
                 foreach (var b in bots)
                 {
                     var l = results[(k, b)];
                     double pushes = l.Sum(r => r.Pushes), calls = l.Sum(r => r.Calls), cw = l.Sum(r => r.CallWins), st = l.Sum(r => r.Steals);
-                    sb.AppendLine($"| {Texts.HoldemKindNames[(int)k]} | {b} | {F(l.Average(r => r.Hands))} | {F(pushes / runs)} | {F(calls / runs)} | {(calls > 0 ? P(cw / calls) : "—")} | {(pushes > 0 ? P(st / pushes) : "—")} | {F(l.Average(r => r.Folds))} | {F(l.Average(r => r.Reentries))} | {F(l.Average(r => r.BadBeats))} |");
+                    sb.AppendLine($"| {Texts.HoldemKindNames[(int)k]} | {b} | {F(l.Average(r => r.Hands))} | {F(pushes / runs)} | {F(st / runs)} | {F(calls / runs)} | {(calls > 0 ? P(cw / calls) : "—")} | {(pushes > 0 ? P(st / pushes) : "—")} | {BustMedian(l)} | {(l.Sum(r => r.BbFacing) > 0 ? P(l.Sum(r => r.BbCalls) / (double)l.Sum(r => r.BbFacing)) : "—")} | {F(l.Average(r => r.Folds))} | {F(l.Average(r => r.Reentries))} | {F(l.Average(r => r.BadBeats))} |");
                 }
 
             sb.AppendLine();
@@ -122,6 +138,23 @@ namespace AllIn.Harness.Sim.Holdem
             var pubGut = results[(TournamentKind.Pub, "직감")];
             sb.AppendLine($"| 펍 1판 ≈ 5분 (평균 핸드 수로 추정: 핸드당 약 3초 폴드/스틸, 콜 받은 올인 약 12초) | 차트 봇 {F(pubChart.Average(r => r.Hands))}핸드·콜 {F(pubChart.Average(r => r.Calls))}회 → 약 {F((pubChart.Average(r => r.Hands - r.Calls) * 3 + pubChart.Average(r => r.Calls) * 12) / 60)}분 / 직감 봇 {F(pubGut.Average(r => r.Hands))}핸드 → 약 {F((pubGut.Average(r => r.Hands - r.Calls) * 3 + pubGut.Average(r => r.Calls) * 12) / 60)}분 |");
 
+            sb.AppendLine();
+            sb.AppendLine("## 격차 분리 (BB 앤티·BB 스틸 대응 / 평균 스택 기준 상대 스택 — 각각 넣고 뺀 결과)");
+            sb.AppendLine();
+            sb.AppendLine("| 설정 | 펍 3승 차트 / 직감 (z) | 새틀 4승 차트 / 직감 (z) | 메인 우승 차트 / 직감 (z) | 펍 평균 핸드 (차트) |");
+            sb.AppendLine("|---|---|---|---|---|");
+            var configs = new (string name, bool ante, bool avg)[] { ("rev.1 (둘 다 없음)", false, false), ("1만 (앤티)", true, false), ("2만 (평균 스택)", false, true), ("1+2 (현재)", true, true) };
+            foreach (var (name, ante, avg) in configs)
+            {
+                var r = ante && avg ? results : Build(ante, avg);
+                string Cell(TournamentKind k, LadderStage st)
+                {
+                    double c = r[(k, "차트")].Count(x => x.Stage >= st) / (double)runs, g = r[(k, "직감")].Count(x => x.Stage >= st) / (double)runs;
+                    double pp = (c + g) / 2, se = Math.Sqrt(2 * pp * (1 - pp) / runs), z = se > 0 ? (c - g) / se : 0;
+                    return $"{P(c)} / {P(g)} ({z:F1})";
+                }
+                sb.AppendLine($"| {name} | {Cell(TournamentKind.Pub, LadderStage.Seat)} | {Cell(TournamentKind.Satellite, LadderStage.Seat)} | {Cell(TournamentKind.Main, LadderStage.Champion)} | {F(r[(TournamentKind.Pub, "차트")].Average(x => x.Hands))} |");
+            }
             System.IO.File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
             Console.WriteLine("holdem v2 sim (H): Pub chart " + P(stageRate(TournamentKind.Pub, "차트", LadderStage.Seat)) + " gut " + P(stageRate(TournamentKind.Pub, "직감", LadderStage.Seat)) +
                               " | Main champion chart " + P(stageRate(TournamentKind.Main, "차트", LadderStage.Champion)) + " → " + path);

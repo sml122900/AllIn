@@ -31,6 +31,6 @@ namespace AllIn.Holdem
     public sealed class ChartPlayer : ILadderPlayer
     {
         public static readonly ChartPlayer Instance = new ChartPlayer();
-        public bool AllIn(LadderHand h) => Ladder.HandPercentile(h) <= Ladder.PushAdvicePercent(h);
+        public bool AllIn(LadderHand h) => Ladder.HandPercentile(h) <= Ladder.AdvicePercent(h);
     }
 }

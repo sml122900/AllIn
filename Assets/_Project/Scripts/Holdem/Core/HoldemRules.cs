@@ -172,6 +172,8 @@ namespace AllIn.Holdem
         public LadderStage Stage;
         public int Wins;
         public int Steals, FreeBlinds, Folds, CalledAllIns, CalledWins;
+        public int BbFacing, BbCalls;                 // BB hands that faced a steal shove / that the hero called
+        public System.Collections.Generic.List<double> BustBb = new System.Collections.Generic.List<double>(); // stack (bb) before each fatal hand
         public System.Collections.Generic.List<string> Log = new System.Collections.Generic.List<string>();
     }
 }

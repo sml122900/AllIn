@@ -9,7 +9,13 @@ namespace AllIn.Holdem.Tests
     /// <summary>DESIGN.md C-v2: all-in-or-fold hand loop and the win ladder.</summary>
     public class LadderTests
     {
-        static Ladder New(TournamentKind kind = TournamentKind.Pub, long seed = 1) => new Ladder(LadderConfig.For(kind), new Xoshiro128((ulong)seed));
+        static Ladder New(TournamentKind kind = TournamentKind.Pub, long seed = 1)
+        {
+            var cfg = LadderConfig.For(kind);
+            cfg.BbAnte = false;          // this class pins the rev.1 model; LadderRev2Tests covers the ante and average stacks
+            cfg.AverageStacks = false;
+            return new Ladder(cfg, new Xoshiro128((ulong)seed));
+        }
 
         /// <summary>Rigs the deal of the current hand: hero cards, every opponent's cards, board, and every opponent's stack ratio.</summary>
         static LadderHand Deal(Ladder l, string hero, string opp, string board, double ratio = 1.0)
@@ -18,7 +24,7 @@ namespace AllIn.Holdem.Tests
             var hc = Card.ParseMany(hero);
             h.Hole0 = hc[0]; h.Hole1 = hc[1];
             var oc = Card.ParseMany(opp);
-            for (int i = 0; i < h.Behind; i++) { h.OppCards[2 * i] = oc[0]; h.OppCards[2 * i + 1] = oc[1]; h.OppStackRatio[i] = ratio; }
+            for (int i = 0; i < h.OppCount; i++) { h.OppCards[2 * i] = oc[0]; h.OppCards[2 * i + 1] = oc[1]; h.OppStackRatio[i] = ratio; }
             h.Board = Card.ParseMany(board);
             return h;
         }

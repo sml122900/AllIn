@@ -227,6 +227,9 @@ namespace AllIn.Core
         public static string LadderBlindIn(int hands, long bb) => "블라인드 " + bb.ToString("N0") + " · 다음 레벨까지 " + hands + "핸드";
         public static string LadderPosition(string pos, int behind) => "포지션 " + pos + " · 내 뒤 " + behind + "명";
         public static string LadderRemaining(int n) => "남은 인원 " + n + "명";
+        public const string LadderCall = "콜(올인)";
+        public static string LadderFacing(string name, string pos, double bb) => name + " (" + pos + ") 올인 " + bb.ToString("F1") + "bb — BB + 앤티를 내고 콜할까?";
+        public static string LadderCallAdvice(double top, double bb, string pos) => pos + " 올인에 콜 · " + bb.ToString("F1") + "bb → 콜 권장 상위 " + top.ToString("F0") + "%";
         public const string LadderFreeBlind = "BB — 앞사람이 전원 폴드. 블라인드 반환 +0.5bb";
         public const string LadderForced = "스택 1bb 미만 — 자동 올인";
         public static string LadderStole(double bb) => "아무도 콜하지 않았다  +" + bb.ToString("F1") + "bb";

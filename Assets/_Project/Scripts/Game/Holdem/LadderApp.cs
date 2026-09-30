@@ -202,12 +202,13 @@ namespace AllIn.Game.HoldemScene
                 var h = l.BeginHand();
                 yield return ShowDeal(h);
                 bool allIn;
-                if (h.Kind == HandKind.Decision)
+                if (h.Kind == HandKind.Decision || h.Kind == HandKind.Facing)
                 {
+                    _allIn.Label.text = h.Kind == HandKind.Facing ? Texts.LadderCall : Texts.LadderAllIn;
                     RefreshAdvice(h);
                     _controls.gameObject.SetActive(true);
                     _seats[0].SetActive(true);
-                    if (OnMoment != null) yield return OnMoment("deal");
+                    if (OnMoment != null) yield return OnMoment(h.Kind == HandKind.Facing ? "bb_facing_shove" : "deal");
                     _choice = null;
                     if (AutoHero != null) _choice = AutoHero.AllIn(h);
                     while (_choice == null) yield return null;
@@ -250,12 +251,19 @@ namespace AllIn.Game.HoldemScene
                 _seats[i].SetStack("");
                 _seats[i].SetAction("");
                 if (i == 0) continue;
-                if (i <= h.Behind) _seats[i].ShowBacks(); else _seats[i].Fold();
+                if (h.Kind == HandKind.Facing) { if (i == h.ShoverSeat) _seats[i].ShowBacks(); else _seats[i].Fold(); }
+                else if (i <= h.Behind) _seats[i].ShowBacks(); else _seats[i].Fold();
             }
             _seats[0].ShowCards(h.Hole0, h.Hole1);
             RefreshInfo(h);
-            _banner.text = h.Kind == HandKind.FreeBlind ? Texts.LadderFreeBlind : h.Kind == HandKind.ForcedAllIn ? Texts.LadderForced : "";
-            _subBanner.text = "";
+            if (h.Kind == HandKind.Facing)
+            {
+                _seats[h.ShoverSeat].SetAction("<color=" + Ui.Hex(Palette.Down) + ">" + Texts.LadderAllIn + " " + h.ShoverStackBb.ToString("F1") + "bb</color>");
+                _banner.text = "";
+                _subBanner.text = Texts.LadderFacing(Ladder.SeatName[h.ShoverSeat], h.ShoverPos.ToString(), h.ShoverStackBb);
+            }
+            else _subBanner.text = "";
+            if (h.Kind != HandKind.Facing) _banner.text = h.Kind == HandKind.FreeBlind ? Texts.LadderFreeBlind : h.Kind == HandKind.ForcedAllIn ? Texts.LadderForced : "";
             yield return Wait(h.Kind == HandKind.Decision ? 0.25f : 0.7f);
         }
 
@@ -381,11 +389,12 @@ namespace AllIn.Game.HoldemScene
             bool on = _study >= 4;
             _advicePanel.gameObject.SetActive(on);
             if (!on) return;
-            double top = Ladder.PushAdvicePercent(h);
+            double top = Ladder.AdvicePercent(h);
             double pct = Ladder.HandPercentile(h);
             string cls = HandRanks.ClassOf(h.Hole0, h.Hole1);
             bool inRange = pct <= top;
-            _adviceText.text = Texts.LadderAdvice(top, h.StackBbBefore, h.Pos.ToString()) + "\n" + Texts.HoldemMyHand(cls, pct, inRange);
+            string adv = h.Kind == HandKind.Facing ? Texts.LadderCallAdvice(top, Math.Min(h.StackBbBefore, h.ShoverStackBb), h.ShoverPos.ToString()) : Texts.LadderAdvice(top, h.StackBbBefore, h.Pos.ToString());
+            _adviceText.text = adv + "\n" + Texts.HoldemMyHand(cls, pct, inRange);
         }
 
         void AddLog(string line)

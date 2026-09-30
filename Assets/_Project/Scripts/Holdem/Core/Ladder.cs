@@ -11,7 +11,7 @@ namespace AllIn.Holdem
 
     public enum LadderStage { None = 0, Seat, MoneyIn, FinalTable, Podium, Champion }
 
-    public enum HandKind { Decision, ForcedAllIn, FreeBlind }
+    public enum HandKind { Decision, ForcedAllIn, FreeBlind, Facing }
 
     public enum HandOutcome { Folded, FreeBlind, Stole, Won, LostSurvived, LostOut, Split }
 
@@ -35,6 +35,10 @@ namespace AllIn.Holdem
         public ReentryRule Reentry = new ReentryRule();
         public long EntryFee;
         public int StudyLevel;
+        /// <summary>C-v2 rev.2: the big-blind seat also pays a 1bb ante, and the hero at BB may face a steal shove (call / fold).</summary>
+        public bool BbAnte = true;
+        /// <summary>C-v2 rev.2: opponent stacks come from the tournament average (lognormal), not from the hero's stack; re-entry restarts at the starting chips.</summary>
+        public bool AverageStacks = true;
 
         public const long BaseBb = 100;
         public const int MaxLevel = 20;
@@ -98,7 +102,12 @@ namespace AllIn.Holdem
         public long Bb;
         public int PosIndex;                 // 0..8 in the cycle
         public TablePosition Pos;
-        public int Behind;                   // opponents left to act (seats 1..Behind)
+        public int Behind;                   // opponents left to act after the hero (seats 1..Behind)
+        public int OppCount;                 // opponents dealt (= Behind, or all 8 on the BB hand when BbAnte)
+        public int ShoverSeat;               // BB hand only: the first opponent who shoved (0 = nobody)
+        public TablePosition ShoverPos;
+        public long ShoverStack;
+        public double ShoverStackBb => ShoverSeat > 0 ? ShoverStack / (double)Bb : 0;
         public int Hole0, Hole1;
         public long StackBefore;
         public HandKind Kind;
@@ -148,7 +157,9 @@ namespace AllIn.Holdem
         };
 
         public const double StealBb = 1.5, SmallBlindBb = 0.5, BadBeatEquity = 0.70;
-        public const double OppStackMin = 0.5, OppStackMax = 1.5;
+        public const double OppStackMin = 0.5, OppStackMax = 1.5;   // legacy (AverageStacks = false)
+        public const double StackSigma = 0.5;                        // lognormal sigma around the average stack
+        public const double AnteBb = 1.0;
         public static int EquitySamples = 400;
 
         public LadderConfig Config { get; }
@@ -198,6 +209,15 @@ namespace AllIn.Holdem
 
         // ---------- hand ----------
 
+        /// <summary>Tournament average stack in chips: starting chips x field / remaining players.</summary>
+        public double AverageStack => Config.StartBb * (double)LadderConfig.BbAt(0) * Config.Field / Remaining;
+
+        long StackFor(double mult) => Math.Max(1, (long)Math.Round((Config.AverageStacks ? AverageStack : Stack) * mult));
+
+        double DrawStackMult() => Config.AverageStacks
+            ? Math.Exp(StackSigma * Rng.NextGaussian())
+            : OppStackMin + (OppStackMax - OppStackMin) * Rng.NextDouble();
+
         /// <summary>Deals the next hand. Hero cards, position and (hidden) opponent cards / stack ratios are fixed here so the deal
         /// never depends on the hero's choice.</summary>
         public LadderHand BeginHand()
@@ -212,18 +232,39 @@ namespace AllIn.Holdem
             };
             var deck = new Deck(Rng);
             h.Hole0 = deck.Deal(); h.Hole1 = deck.Deal();
-            h.OppCards = new int[h.Behind * 2];
-            h.OppStackRatio = new double[h.Behind];
-            for (int i = 0; i < h.Behind; i++)
+            bool bbSeat = idx == Cycle.Length - 1;
+            h.OppCount = bbSeat && Config.BbAnte ? HoldemRules.Seats - 1 : h.Behind;
+            h.OppCards = new int[h.OppCount * 2];
+            h.OppStackRatio = new double[h.OppCount];
+            for (int i = 0; i < h.OppCount; i++)
             {
                 h.OppCards[2 * i] = deck.Deal(); h.OppCards[2 * i + 1] = deck.Deal();
-                h.OppStackRatio[i] = OppStackMin + (OppStackMax - OppStackMin) * Rng.NextDouble();
+                h.OppStackRatio[i] = DrawStackMult();
             }
             h.Board = new[] { deck.Deal(), deck.Deal(), deck.Deal(), deck.Deal(), deck.Deal() };
-            h.Kind = idx == Cycle.Length - 1 ? HandKind.FreeBlind : Stack < h.Bb ? HandKind.ForcedAllIn : HandKind.Decision;
+            h.Kind = bbSeat ? HandKind.FreeBlind : Stack < h.Bb ? HandKind.ForcedAllIn : HandKind.Decision;
+            if (bbSeat && Config.BbAnte) FindShover(h);
             Current = h;
             Resolved = false;
             return h;
+        }
+
+        /// <summary>BB hand: the eight opponents ahead act in order; the first whose hand is inside their push range shoves.</summary>
+        internal void FindShover(LadderHand h)
+        {
+            for (int i = 0; i < h.OppCount; i++)
+            {
+                var pos = Cycle[i];            // seats 1..8 act UTG, UTG, UTG, MP, MP, CO, BTN, SB
+                long oppStack = StackFor(h.OppStackRatio[i]);
+                double eff = Math.Min(Stack, oppStack) / (double)h.Bb;
+                var pers = Personality.For(SeatPersonality[i + 1]);
+                double range = RangeMath.Scaled(PushFoldTable.PushPercent(pos, eff), pers.RangeMultiplier);
+                double pct = HandRanks.Percentile(h.OppCards[2 * i], h.OppCards[2 * i + 1]);
+                if (pct > range) continue;
+                h.ShoverSeat = i + 1; h.ShoverPos = pos; h.ShoverStack = oppStack;
+                h.Kind = HandKind.Facing;
+                return;
+            }
         }
 
         public bool Resolved { get; private set; } = true;
@@ -243,6 +284,19 @@ namespace AllIn.Holdem
                 h.Outcome = HandOutcome.FreeBlind;
                 Stack += bb / 2;
                 Result.FreeBlinds++;
+            }
+            else if (h.Kind == HandKind.Facing)
+            {
+                Result.BbFacing++;
+                bool call = allIn || Stack < bb;   // under one big blind the call is automatic
+                h.ChoseAllIn = call;
+                if (call) { Result.BbCalls++; Showdown(h, h.ShoverSeat - 1, h.ShoverStack); }
+                else
+                {
+                    h.Outcome = HandOutcome.Folded;
+                    Result.Folds++;
+                    Stack = Math.Max(0, Stack - (long)Math.Round(bb * (1 + AnteBb)));   // BB + ante
+                }
             }
             else
             {
@@ -265,7 +319,7 @@ namespace AllIn.Holdem
             History.Add(h);
             Result.Log.Add(h.HandNo + ": " + h.Pos + " " + Card.ToText(h.Hole0) + Card.ToText(h.Hole1) + " " + (h.ChoseAllIn ? "push" : "fold") + " " + h.Outcome + " " + h.Delta + " wins " + Wins);
 
-            if (h.Outcome == HandOutcome.LostOut) OnBust(h);
+            if (h.Outcome == HandOutcome.LostOut || Stack <= 0) OnBust(h);
             return h;
         }
 
@@ -277,7 +331,7 @@ namespace AllIn.Holdem
             for (int i = 0; i < h.Behind && caller < 0; i++)
             {
                 int seat = i + 1;
-                oppStack = Math.Max(1, (long)Math.Round(Stack * h.OppStackRatio[i]));
+                oppStack = StackFor(h.OppStackRatio[i]);
                 double eff = Math.Min(Stack, oppStack) / (double)bb;
                 var pers = Personality.For(SeatPersonality[seat]);
                 double range = RangeMath.Scaled(PushFoldTable.CallPercent(h.Pos, eff), pers.RangeMultiplier);
@@ -288,12 +342,18 @@ namespace AllIn.Holdem
             if (caller < 0)
             {
                 h.Outcome = HandOutcome.Stole;
-                long gain = (long)Math.Round(bb * StealBb) - (h.Pos == TablePosition.SB ? bb / 2 : 0);
+                double pot = Config.BbAnte ? 1.5 + AnteBb : StealBb;   // SB 0.5 + BB 1 (+ ante 1)
+                long gain = (long)Math.Round(bb * pot) - (h.Pos == TablePosition.SB ? bb / 2 : 0);
                 Stack += gain;
                 Result.Steals++;
                 return;
             }
 
+            Showdown(h, caller, oppStack);
+        }
+
+        void Showdown(LadderHand h, int caller, long oppStack)
+        {
             Result.CalledAllIns++;
             h.CallerSeat = caller + 1;
             h.CallerPersonality = SeatPersonality[h.CallerSeat];
@@ -382,6 +442,7 @@ namespace AllIn.Holdem
         void OnBust(LadderHand h)
         {
             h.BustedOut = true;
+            Result.BustBb.Add(h.StackBbBefore);
             var re = Config.Reentry;
             // re-entry window: bust while the level is still within the first UntilLevel levels (level index 0-based)
             if (re.Allowed && h.Level < re.UntilLevel) { AwaitingReentry = true; return; }
@@ -397,7 +458,7 @@ namespace AllIn.Holdem
             Result.Reentries++;
             Wins = 0;
             _bubbleShown = false;
-            Stack = Config.StartBb * Bb;
+            Stack = Config.AverageStacks ? Config.StartBb * LadderConfig.BbAt(0) : Config.StartBb * Bb;
             Result.Log.Add("re-entry at level " + (Level + 1));
         }
 
@@ -421,6 +482,17 @@ namespace AllIn.Holdem
             if (h.Pos == TablePosition.BB) return 0;
             return PushFoldTable.PushPercent(h.Pos, h.StackBbBefore);
         }
+
+        /// <summary>BB hand facing a shove: call range (top %) against the shover's position at the effective stack.</summary>
+        public static double CallAdvicePercent(LadderHand h)
+        {
+            if (h.ShoverSeat == 0) return 0;
+            double eff = Math.Min(h.StackBefore, h.ShoverStack) / (double)h.Bb;
+            return PushFoldTable.CallPercent(h.ShoverPos, eff);
+        }
+
+        /// <summary>The chart's advice for this hand, whichever kind it is: push / call range (top %).</summary>
+        public static double AdvicePercent(LadderHand h) => h.Kind == HandKind.Facing ? CallAdvicePercent(h) : PushAdvicePercent(h);
 
         public static double HandPercentile(LadderHand h) => HandRanks.Percentile(h.Hole0, h.Hole1);
 

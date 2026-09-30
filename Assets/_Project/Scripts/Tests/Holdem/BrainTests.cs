@@ -43,7 +43,7 @@ namespace AllIn.Holdem.Tests
         public void PushFold_WiderInLaterPositions()
         {
             var order = new[] { TablePosition.UTG, TablePosition.MP, TablePosition.CO, TablePosition.BTN, TablePosition.SB };
-            foreach (double bb in new[] { 3, 4, 5, 6, 7, 8.5, 10, 12, 15 })
+            foreach (double bb in new[] { 3, 4, 5, 6, 7, 8.5, 10, 12, 15, 17, 20, 22.5, 25, 30, 35, 50 })
             for (int i = 1; i < order.Length; i++)
             {
                 Assert.GreaterOrEqual(PushFoldTable.PushPercent(order[i], bb), PushFoldTable.PushPercent(order[i - 1], bb), order[i] + " push @" + bb);
@@ -57,7 +57,7 @@ namespace AllIn.Holdem.Tests
             foreach (TablePosition p in new[] { TablePosition.UTG, TablePosition.MP, TablePosition.CO, TablePosition.BTN, TablePosition.SB })
             {
                 double prevPush = 101, prevCall = 101;
-                for (double bb = 1; bb <= 15; bb += 0.5)
+                for (double bb = 1; bb <= 45; bb += 0.5)
                 {
                     double push = PushFoldTable.PushPercent(p, bb), call = PushFoldTable.CallPercent(p, bb);
                     Assert.LessOrEqual(push, prevPush, p + " push @" + bb);
