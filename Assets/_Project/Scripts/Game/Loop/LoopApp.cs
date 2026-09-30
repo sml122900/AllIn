@@ -3,6 +3,7 @@ using System.Text;
 using AllIn.Core;
 using AllIn.Core.Actions;
 using AllIn.Game.UI;
+using AllIn.Game.World;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
@@ -34,6 +35,8 @@ namespace AllIn.Game.LoopScene
         TextMeshProUGUI _dayText, _cashText, _assetText, _roomText, _positionText, _logText, _hintText;
         Ui.Gauge _body, _mental;
         Ui.Btn _work, _coin, _exchange, _lotto, _checkup, _rest;
+        Ui.Btn _shopCloth, _shopCar, _wardrobe, _pub;
+        Camera _cam;
         TextMeshProUGUI _lifeText;
         UnityEngine.UI.Image _roomShade;
         float _hintUntil;
@@ -43,6 +46,13 @@ namespace AllIn.Game.LoopScene
         public WatchScreen Watch { get; private set; }
         public LottoScreen Lotto { get; private set; }
         public EventPresenter Events { get; private set; }
+        public WorldView Stage { get; private set; }
+        public ClothShopScreen ClothShop { get; private set; }
+        public WardrobeScreen Wardrobe { get; private set; }
+        public CarShopScreen CarShop { get; private set; }
+
+        /// <summary>The voyage scenes (E6): the street is not shown and the hero is not on it.</summary>
+        public bool AtSeaScene { get => Stage != null && Stage.AtSea; set { if (Stage != null) Stage.AtSea = value; } }
 
         void Awake()
         {
@@ -56,9 +66,27 @@ namespace AllIn.Game.LoopScene
             Watch = WatchScreen.Create(this);
             Lotto = LottoScreen.Create(this);
             Events = EventPresenter.Create(this);
+            ClothShop = ClothShopScreen.Create(this);
+            Wardrobe = WardrobeScreen.Create(this);
+            CarShop = CarShopScreen.Create(this);
+            Stage = WorldView.Create(this, _cam.transform);
+#if UNITY_EDITOR
+            gameObject.AddComponent<AllIn.Game.Dev.EditorDebugMenu>();
+#endif
 
             var saved = SaveIO.Load();
             Loop = saved != null ? Core.Loop.FromSave(saved) : Core.Loop.NewRun(NewSeed());
+            Save();
+            Refresh();
+        }
+
+        /// <summary>Debug only (editor menu, dev capture): puts companions in the save so the rendering path can be checked. The game has no way to add one (E9).</summary>
+        public void DebugSetCompanions(bool spouse, bool child)
+        {
+            var list = Loop.Data.companions;
+            list.Clear();
+            if (spouse) list.Add(Companion.Make(CompanionKind.Spouse));
+            if (child) list.Add(Companion.Make(CompanionKind.Child));
             Save();
             Refresh();
         }
@@ -72,6 +100,9 @@ namespace AllIn.Game.LoopScene
             Coin.Hide();
             Exchange.Hide();
             Lotto.Hide();
+            ClothShop.Hide();
+            Wardrobe.Hide();
+            CarShop.Hide();
             Save();
             Refresh();
         }
@@ -101,7 +132,7 @@ namespace AllIn.Game.LoopScene
         /// at risk this slot (B5a) route through the watch scene before the result is finalized.</summary>
         public ActionResult Perform(IAction action)
         {
-            if (Events.Busy || Watch.Busy) return ActionResult.Refused("");
+            if (Events.Busy || Watch.Busy || Stage.Busy) return ActionResult.Refused("");
             bool sleeping = action is RestAction && Loop.Data.slot == Slot.Night;
             bool working = action is WorkRestaurantAction;
 
@@ -135,6 +166,43 @@ namespace AllIn.Game.LoopScene
         void Update()
         {
             if (_hintText.text.Length > 0 && Time.unscaledTime > _hintUntil) _hintText.text = "";
+            if (Stage == null || Loop == null) return;
+            Stage.ScreenOpen = Coin.Visible || Exchange.Visible || Lotto.Visible || ClothShop.Visible || Wardrobe.Visible || CarShop.Visible || Watch.Busy || Events.Busy;
+            Stage.Tick();
+        }
+
+        // ---------- going somewhere (E6): walk to the building first, then the usual UI / action ----------
+
+        /// <summary>Every place-bound button goes through here: the hero walks (or drives) to `place` — no slot is spent — and `then` runs on arrival.</summary>
+        void Go(Place place, Func<System.Collections.IEnumerator> then)
+        {
+            if (Events.Busy || Watch.Busy || Stage.Busy || Loop.Finished) return;
+            StartCoroutine(GoRoutine(place, then));
+        }
+
+        System.Collections.IEnumerator GoRoutine(Place place, Func<System.Collections.IEnumerator> then)
+        {
+            yield return Stage.GoTo(place);
+            Save();
+            if (then != null) yield return then();
+            Refresh();
+        }
+
+        System.Collections.IEnumerator Now(Action a) { a(); yield break; }
+
+        System.Collections.IEnumerator WorkAtRestaurant()
+        {
+            Stage.StepInside(0.7f);
+            Perform(WorkRestaurantAction.Instance);
+            yield break;
+        }
+
+        /// <summary>Rest by day (sit at the desk) or sleep by night (lie on the bed) — a short pose, then the slot passes.</summary>
+        System.Collections.IEnumerator RestAtHome()
+        {
+            bool night = Loop.Data.slot == Slot.Night;
+            yield return Stage.PlayPose(night ? DollPose.Lie : DollPose.Sit, 0.7f);
+            Perform(RestAction.Instance);
         }
 
         // ---------- world (pixel-perfect room backdrop) ----------
@@ -144,6 +212,7 @@ namespace AllIn.Game.LoopScene
             var camGo = new GameObject("Main Camera");
             camGo.tag = "MainCamera";
             var cam = camGo.AddComponent<Camera>();
+            _cam = cam;
             cam.orthographic = true;
             cam.orthographicSize = 90;
             cam.clearFlags = CameraClearFlags.SolidColor;
@@ -191,7 +260,7 @@ namespace AllIn.Game.LoopScene
         }
 
         static readonly Color[] RoomColors = { new Color(0.22f, 0.24f, 0.20f), new Color(0.45f, 0.40f, 0.33f), new Color(0.30f, 0.38f, 0.50f) };
-        static readonly Color[] SlotTint = { new Color(0.55f, 0.6f, 0.8f), Color.white, new Color(1f, 0.97f, 0.9f), new Color(0.9f, 0.7f, 0.6f), new Color(0.3f, 0.3f, 0.45f) };
+        public static readonly Color[] SlotTint = { new Color(0.55f, 0.6f, 0.8f), Color.white, new Color(1f, 0.97f, 0.9f), new Color(0.9f, 0.7f, 0.6f), new Color(0.3f, 0.3f, 0.45f) };
 
         void PaintRoom()
         {
@@ -241,7 +310,7 @@ namespace AllIn.Game.LoopScene
             _roomShade.rectTransform.Place(0, 0, 1, 1, 0, 120, 0, 120);
 
             // log
-            var logPanel = Ui.Image(root, "Log", new Color(0, 0, 0, 0.55f)).rectTransform.Place(1, 0, 1, 1, -420, 130, 16, 132);
+            var logPanel = Ui.Image(root, "Log", new Color(0, 0, 0, 0.55f)).rectTransform.Place(1, 0, 1, 1, -420, 196, 16, 132);
             _logText = Ui.Text(logPanel, "", 18, Palette.Dim, TextAlignmentOptions.BottomLeft);
             _logText.rectTransform.Place(0, 0, 1, 1, 12, 10, 12, 10);
             _logText.overflowMode = TextOverflowModes.Truncate;
@@ -249,16 +318,16 @@ namespace AllIn.Game.LoopScene
             // bottom action bar
             var bottom = Ui.Image(root, "ActionBar", Palette.Panel).rectTransform.Place(0, 0, 1, 0, 0, 0, 0, -120);
             _hintText = Ui.Text(root, "", 22, Palette.Accent, TextAlignmentOptions.Center);
-            _hintText.rectTransform.Place(0, 0, 1, 0, 0, 122, 0, -160);
+            _hintText.rectTransform.Place(0, 0, 1, 0, 0, 190, 0, -230);
             string[] labels = { Texts.ActWork, Texts.ActCoin, Texts.WalletBank, Texts.ActLotto, Texts.ActCheckup, Texts.ActRest };
             Action[] actions =
             {
-                () => Perform(WorkRestaurantAction.Instance),
-                () => Coin.Show(),
-                () => Exchange.Show(),
-                () => Lotto.Show(),
-                () => Perform(CheckupAction.Instance),
-                () => Perform(RestAction.Instance),
+                () => Go(Place.Restaurant, WorkAtRestaurant),
+                () => Go(Place.Bank, () => Now(Coin.Show)),
+                () => Go(Place.Bank, () => Now(Exchange.Show)),
+                () => Go(Place.LottoShop, () => Now(Lotto.Show)),
+                () => Go(Place.Home, () => Now(() => Perform(CheckupAction.Instance))),
+                () => Go(Place.Home, RestAtHome),
             };
             const int n = 6;
             var buttons = new Ui.Btn[n];
@@ -268,6 +337,26 @@ namespace AllIn.Game.LoopScene
                 buttons[i] = Ui.Button(bottom, labels[i], actions[i], 26);
                 buttons[i].Rect.Place(x0, 0, x1, 1, 8, 18, 8, 18);
             }
+            // v0.5 shop bar (E6–E8): places that only cost walking
+            var shops = Ui.Image(root, "ShopBar", new Color(0.09f, 0.09f, 0.12f, 0.97f)).rectTransform.Place(0, 0, 1, 0, 0, 120, 0, -184);
+            string[] shopLabels = { Texts.PlaceNames[(int)Place.ClothShop], Texts.PlaceNames[(int)Place.CarDealer], Texts.WardrobeTitle, Texts.PlaceNames[(int)Place.Pub] };
+            Action[] shopActions =
+            {
+                () => Go(Place.ClothShop, () => Now(ClothShop.Show)),
+                () => Go(Place.CarDealer, () => Now(CarShop.Show)),
+                () => Go(Place.Home, () => Now(Wardrobe.Show)),
+                () => Go(Place.Pub, () => Now(() => Hint(Texts.PubClosed))),
+            };
+            var shopButtons = new Ui.Btn[4];
+            for (int i = 0; i < 4; i++)
+            {
+                shopButtons[i] = Ui.Button(shops, shopLabels[i], shopActions[i], 20);
+                shopButtons[i].Rect.Place(i / 4f, 0, (i + 1) / 4f, 1, 8, 6, 8, 6);
+            }
+            _shopCloth = shopButtons[0];
+            _shopCar = shopButtons[1];
+            _wardrobe = shopButtons[2];
+            _pub = shopButtons[3];
             _work = buttons[0];
             _coin = buttons[1];
             _exchange = buttons[2];
@@ -324,9 +413,15 @@ namespace AllIn.Game.LoopScene
                 if (!string.IsNullOrEmpty(why.Reason)) _work.Label.text = Texts.ActWork + "\n<size=18>" + why.Reason + "</size>";
             }
 
+            foreach (var b in new[] { _shopCloth, _shopCar, _wardrobe, _pub }) b.Interactable = alive;
+
             Coin.Refresh();
             Exchange.Refresh();
             Lotto.Refresh();
+            ClothShop.Refresh();
+            Wardrobe.Refresh();
+            CarShop.Refresh();
+            Stage.Sync();
         }
     }
 }

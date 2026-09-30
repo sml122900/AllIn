@@ -39,6 +39,8 @@ namespace AllIn.Holdem
         public bool BbAnte = true;
         /// <summary>C-v2 rev.2: opponent stacks come from the tournament average (lognormal), not from the hero's stack; re-entry restarts at the starting chips.</summary>
         public bool AverageStacks = true;
+        /// <summary>E2: chance a called all-in becomes a guaranteed win (DESIGN.md E1/E2). Sim-tunable; default 0.</summary>
+        public double LuckQ = HoldemRules.LuckQHoldem;
 
         public const long BaseBb = 100;
         public const int MaxLevel = 20;
@@ -133,6 +135,8 @@ namespace AllIn.Holdem
         public bool BubbleNow;
         public bool LevelUp;                 // the NEXT hand starts a new level
         public bool BustedOut;               // eliminated (may re-enter, see Ladder.AwaitingReentry)
+        public bool LuckTriggered;           // E2: "무조건 승리" came up for this called all-in (decided after the call, before the cards)
+        public bool LuckFlipped;             // ... and the board had to be rebuilt to make the hero win
 
         public double StackBbBefore => StackBefore / (double)Bb;
     }
@@ -164,6 +168,8 @@ namespace AllIn.Holdem
 
         public LadderConfig Config { get; }
         public IRng Rng { get; }
+        /// <summary>E1: the "무조건 승리" stream. Falls back to <see cref="Rng"/> when unset; never drawn while LuckQ = 0.</summary>
+        public IRng LuckRng { get; set; }
         public long Stack { get; internal set; }
         public int Wins { get; private set; }
         public int HandsPlayed { get; private set; }
@@ -367,6 +373,19 @@ namespace AllIn.Holdem
 
             int mine = HandEvaluator.Evaluate(h.Hole0, h.Hole1, h.Board, 5);
             int theirs = HandEvaluator.Evaluate(h.Opp0, h.Opp1, h.Board, 5);
+            // E2: only here — after the hero's push was called (or the hero called) and before the cards are turned up
+            if (Config.LuckQ > 0 && (LuckRng ?? Rng).Chance(Config.LuckQ))
+            {
+                h.LuckTriggered = true;
+                Result.LuckWins++;
+                if (mine <= theirs)
+                {
+                    h.Board = WinningBoard(h, LuckRng ?? Rng);
+                    h.LuckFlipped = true;
+                    mine = HandEvaluator.Evaluate(h.Hole0, h.Hole1, h.Board, 5);
+                    theirs = HandEvaluator.Evaluate(h.Opp0, h.Opp1, h.Board, 5);
+                }
+            }
             if (mine > theirs)
             {
                 h.Outcome = HandOutcome.Won;
@@ -395,6 +414,40 @@ namespace AllIn.Holdem
                     Stack = 0;
                 }
             }
+        }
+
+        /// <summary>A 5-card runout from the undealt cards on which the hero beats the caller (conditional sampling, exhaustive fallback).</summary>
+        static int[] WinningBoard(LadderHand h, IRng rng)
+        {
+            var used = new bool[52];
+            used[h.Hole0] = used[h.Hole1] = true;
+            foreach (int c in h.OppCards) used[c] = true;
+            var pool = new List<int>();
+            for (int c = 0; c < 52; c++) if (!used[c]) pool.Add(c);
+            var board = new int[5];
+            bool Wins()
+            {
+                return HandEvaluator.Evaluate(h.Hole0, h.Hole1, board, 5) > HandEvaluator.Evaluate(h.Opp0, h.Opp1, board, 5);
+            }
+            var idx = pool.ToArray();
+            for (int attempt = 0; attempt < 5000; attempt++)
+            {
+                for (int k = 0; k < 5; k++)
+                {
+                    int j = k + rng.NextInt(idx.Length - k);
+                    int t = idx[k]; idx[k] = idx[j]; idx[j] = t;
+                    board[k] = idx[k];
+                }
+                if (Wins()) return (int[])board.Clone();
+            }
+            int n = pool.Count;
+            for (int a = 0; a < n; a++) for (int b = a + 1; b < n; b++) for (int c = b + 1; c < n; c++)
+            for (int d = c + 1; d < n; d++) for (int e = d + 1; e < n; e++)
+            {
+                board[0] = pool[a]; board[1] = pool[b]; board[2] = pool[c]; board[3] = pool[d]; board[4] = pool[e];
+                if (Wins()) return (int[])board.Clone();
+            }
+            return h.Board;   // no runout beats this hand (identical ranks and no flush): keep the deal
         }
 
         void ReplaceSeat(int seat)

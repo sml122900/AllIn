@@ -437,15 +437,34 @@ namespace AllIn.Game.LoopScene
             _app.Save();
 
             var black = Scrim(Color.black);
+            _app.AtSeaScene = true;                      // E6: no street, no hero while the ship is out
+            var ship = ShipScene(black);
             var text = Ui.Text(black, "", 30, align: TextAlignmentOptions.Center);
-            text.rectTransform.Place(0, 0.2f, 1, 0.8f, 60, 0, 60, 0);
+            text.rectTransform.Place(0, 0.2f, 1, 0.66f, 60, 0, 60, 0);
             Ui.Text(black, Texts.VoyageBoardTitle, 22, Palette.Dim, TextAlignmentOptions.Center).rectTransform.Place(0, 0.8f, 1, 0.9f);
             var shown = new List<string>();
             foreach (var line in Texts.VoyageBoardLines) { shown.Add(line); text.text = string.Join("\n\n", shown); yield return new WaitForSecondsRealtime(0.9f); }
             shown.Clear();
             foreach (var line in Texts.VoyageSkipLines) { shown.Add(line); text.text = string.Join("\n\n", shown); yield return new WaitForSecondsRealtime(0.9f); }
             yield return WaitButton(black, Texts.Confirm);
+            _app.AtSeaScene = false;
             Destroy(black.gameObject);
+        }
+
+        /// <summary>The ship scene (placeholder pixel blocks): a hull with a cabin and stack riding two rows of waves.</summary>
+        RectTransform ShipScene(RectTransform parent)
+        {
+            var root = Ui.Rect(parent, "Ship");
+            root.Place(0.5f, 0.68f, 0.5f, 0.68f, -150, -60, -150, -60);
+            Ui.Image(root, "Hull", new Color(0.32f, 0.20f, 0.14f)).rectTransform.Box(0.5f, 0.5f, 240, 44, 0, -20);
+            Ui.Image(root, "Bow", new Color(0.32f, 0.20f, 0.14f)).rectTransform.Box(0.5f, 0.5f, 60, 30, 130, -13);
+            Ui.Image(root, "Cabin", new Color(0.82f, 0.82f, 0.80f)).rectTransform.Box(0.5f, 0.5f, 80, 38, -40, 21);
+            Ui.Image(root, "Window", new Color(0.55f, 0.75f, 0.9f)).rectTransform.Box(0.5f, 0.5f, 60, 10, -40, 24);
+            Ui.Image(root, "Stack", new Color(0.7f, 0.25f, 0.2f)).rectTransform.Box(0.5f, 0.5f, 20, 30, -50, 55);
+            Ui.Image(root, "Mast", new Color(0.6f, 0.6f, 0.6f)).rectTransform.Box(0.5f, 0.5f, 5, 60, 60, 40);
+            for (int i = 0; i < 12; i++)
+                Ui.Image(root, "Wave" + i, new Color(0.12f, 0.25f, 0.45f)).rectTransform.Box(0.5f, 0.5f, 46, 8, -260 + i * 46, -46 + (i % 2) * 8);
+            return root;
         }
 
         IEnumerator VoyageReturn(GameEvent e)
@@ -491,7 +510,8 @@ namespace AllIn.Game.LoopScene
                 Row(Texts.E7LottoSpent, Fmt.Won(s.lottoSpent)) + "   " + Row(Texts.E7LottoWon, Fmt.Won(s.lottoWon)),
                 Row(Texts.E7Max, Fmt.Won(s.maxAssets)) + "   " + Row(Texts.E7Min, Fmt.Won(s.minAssets)),
                 Row(Texts.E7Hope, s.hopeCircuits + "회"),
-                Row(Texts.E7Prayers, s.prayers + "회") + "   " + Row(Texts.E7RageBets, s.rageBets + "회") + "   " + Row(Texts.E7GhostMissed, Fmt.Won(s.ghostMissedMoney)),
+                Row(Texts.E7Prayers, s.prayers + "회") + "   " + Row(Texts.E7Luck, s.luckUses + "회"),
+                Row(Texts.E7RageBets, s.rageBets + "회") + "   " + Row(Texts.E7GhostMissed, Fmt.Won(s.ghostMissedMoney)),
                 Row(Texts.VoyageCount, s.voyages + "회") + "   " + Row(Texts.Age, Texts.AgeLabel(loop.Age)),
                 Row(Texts.BodyMax, loop.Data.bodyMax.ToString()) + "   " + Row(Texts.HealthDebt, loop.Data.healthDebt.ToString()),
             };

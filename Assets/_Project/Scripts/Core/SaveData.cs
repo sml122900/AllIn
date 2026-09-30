@@ -9,11 +9,13 @@ namespace AllIn.Core
     [Serializable]
     public class SaveData
     {
-        public int version = 1;
+        public const int CurrentVersion = 2;
+        public int version = SaveData.CurrentVersion;
         public long seed;
         public int[] marketRngState = new int[4]; // coin price path only, so strategies see the same market
         public int[] rngState = new int[4];       // everything else (lotto numbers, job mistakes, flavor)
         public int[] subTickRngState = new int[4]; // sub-tick decomposition of the slot's price move, separate from marketRngState
+        public int[] luckRngState = new int[4];    // v2: "무조건 승리" rolls only (never drawn while q = 0); all zero in v1 saves -> derived from seed
 
         public int body;
         public int bodyMax = Rules.BodyMaxStart;   // D4: shrinks by 15 per voyage (floor 40); body is clamped to it
@@ -65,6 +67,13 @@ namespace AllIn.Core
         public int checkupProgress;                                 // D5: checkups since the last debt relief (only counts while debt > 0)
         public int nextHealthCheckDay = 1 + Rules.HealthCheckIntervalDays; // D5: next illness roll (dawn)
         public bool atSea;                                          // D4: true only while a voyage is being simulated; every action refuses
+
+        // v0.5 (DESIGN.md E5–E10): style, street position, car, companions. Field initializers are the v1-save defaults.
+        public Place place;                                         // E6: last building visited (Home at the start); moving costs no slot
+        public Appearance appearance = new Appearance();
+        public List<int> ownedClothes = new List<int> { Wardrobe.StarterTop, Wardrobe.StarterBottom, Wardrobe.StarterShoes };
+        public int carTier;                                         // E8: 0 = none, 1..4
+        public List<Companion> companions = new List<Companion>();  // E9: picture slots only
 
         // scheduling
         public int lostUntilSlot = -1;   // absolute slot index; slots before it are lost ("can't get up")
@@ -154,6 +163,7 @@ namespace AllIn.Core
 
         // B5 v0.3 liquidation chain
         public int prayers;
+        public int luckUses;                 // E1: "무조건 승리" pressed (coin)
         public int rageBets;
         public long ghostMissedMoney;
         public int watchesShown;

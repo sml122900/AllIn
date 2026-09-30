@@ -26,13 +26,23 @@ namespace AllIn.Core
         readonly Xoshiro128 _market;
         readonly Xoshiro128 _rng;
         readonly Xoshiro128 _subTick;
+        readonly Xoshiro128 _luck;
 
-        Loop(SaveData data, Xoshiro128 market, Xoshiro128 rng, Xoshiro128 subTick)
+        /// <summary>E1 "무조건 승리" rolls only. Never drawn while q = 0, and never touched by prayers, mental or anything else.</summary>
+        public IRng LuckRng => _luck;
+
+        /// <summary>Chance a watch scene offers "무조건 승리" (DESIGN.md E3). Sim-tunable, not saved; the rule default is 0.</summary>
+        public double LuckQCoin { get; set; } = Rules.LuckQCoin;
+
+        const ulong LuckSalt = 0x1AC1AC1AC1ACUL;
+
+        Loop(SaveData data, Xoshiro128 market, Xoshiro128 rng, Xoshiro128 subTick, Xoshiro128 luck)
         {
             Data = data;
             _market = market;
             _rng = rng;
             _subTick = subTick;
+            _luck = luck;
         }
 
         public static Loop NewRun(long seed, IPriceModel priceModel = null)
@@ -46,7 +56,7 @@ namespace AllIn.Core
                 mental = Rules.MentalStart,
                 price = Rules.CoinStartPrice,
             };
-            var loop = new Loop(d, new Xoshiro128((ulong)seed), new Xoshiro128((ulong)seed ^ 0x5EED5EED5EEDUL), new Xoshiro128((ulong)seed ^ 0x5AB7A11C5AB7A11CUL));
+            var loop = new Loop(d, new Xoshiro128((ulong)seed), new Xoshiro128((ulong)seed ^ 0x5EED5EED5EEDUL), new Xoshiro128((ulong)seed ^ 0x5AB7A11C5AB7A11CUL), new Xoshiro128((ulong)seed ^ LuckSalt));
             if (priceModel != null) loop.PriceModel = priceModel;
             d.priceHistory.Add(d.price);
 
@@ -68,7 +78,8 @@ namespace AllIn.Core
         public static Loop FromSave(SaveData data, IPriceModel priceModel = null)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            var loop = new Loop(data, new Xoshiro128(ToUInts(data.marketRngState)), new Xoshiro128(ToUInts(data.rngState)), new Xoshiro128(ToUInts(data.subTickRngState)));
+            Migrate(data);
+            var loop = new Loop(data, new Xoshiro128(ToUInts(data.marketRngState)), new Xoshiro128(ToUInts(data.rngState)), new Xoshiro128(ToUInts(data.subTickRngState)), new Xoshiro128(ToUInts(data.luckRngState)));
             if (priceModel != null) loop.PriceModel = priceModel;
             return loop;
         }
@@ -79,8 +90,21 @@ namespace AllIn.Core
             Data.marketRngState = ToInts(_market.GetState());
             Data.rngState = ToInts(_rng.GetState());
             Data.subTickRngState = ToInts(_subTick.GetState());
+            Data.luckRngState = ToInts(_luck.GetState());
             return Data;
         }
+
+        /// <summary>v1 -> v2 (DESIGN.md E10): the luck stream comes from the seed; appearance/wardrobe defaults are Core/LoopStyle.</summary>
+        static void Migrate(SaveData d)
+        {
+            if (d.version >= SaveData.CurrentVersion) return;
+            if (d.luckRngState == null || d.luckRngState.Length != 4 || (d.luckRngState[0] | d.luckRngState[1] | d.luckRngState[2] | d.luckRngState[3]) == 0)
+                d.luckRngState = ToInts(new Xoshiro128((ulong)d.seed ^ LuckSalt).GetState());
+            MigrateStyle(d);
+            d.version = SaveData.CurrentVersion;
+        }
+
+        static partial void MigrateStyle(SaveData d);
 
         static uint[] ToUInts(int[] a) => new[] { unchecked((uint)a[0]), unchecked((uint)a[1]), unchecked((uint)a[2]), unchecked((uint)a[3]) };
         static int[] ToInts(uint[] a) => new[] { unchecked((int)a[0]), unchecked((int)a[1]), unchecked((int)a[2]), unchecked((int)a[3]) };
@@ -158,6 +182,7 @@ namespace AllIn.Core
                 Snapshot();
                 return new WatchableAction(result, null);
             }
+            bool sleeping = action is RestAction && Data.slot == Slot.Night;   // E3: no watch scene, so no luck offer
             if (Data.slot == Slot.Night && !(action is RestAction))
             {
                 AddMental(-Rules.AllNighterMental); // all-nighter: no recovery, mental hit
@@ -172,15 +197,15 @@ namespace AllIn.Core
                 Snapshot();
                 return new WatchableAction(result, null);
             }
-            return AdvanceAfterSlotEnd(result);
+            return AdvanceAfterSlotEnd(result, sleeping);
         }
 
         /// <summary>The second half of a slot end: clock, price walk, next slot's start. Shared with ContinueLife (the month-end
         /// slot already ran its OnSlotEnd before the settlement pause).</summary>
-        WatchableAction AdvanceAfterSlotEnd(ActionResult result)
+        WatchableAction AdvanceAfterSlotEnd(ActionResult result, bool sleeping = false)
         {
             AdvanceClockOnly();
-            var walk = BeginPriceWalk();
+            var walk = BeginPriceWalk(sleeping);
             if (!walk.WatchTriggered)
             {
                 walk.RunToEnd();
@@ -245,7 +270,7 @@ namespace AllIn.Core
         void MoveToNextSlot()
         {
             AdvanceClockOnly();
-            var walk = BeginPriceWalk();
+            var walk = BeginPriceWalk(true);   // a lost ("can't get up") slot is asleep: no watch, no luck
             walk.RunToEnd();
             FinishPriceWalk(walk);
             OnSlotStart();
@@ -254,12 +279,12 @@ namespace AllIn.Core
         /// <summary>Draws the slot's close price (market stream, unchanged) and, if a position is open, decomposes
         /// it into Rules.SubTicksPerSlot sub-tick prices (sub-tick stream) for tail-risk liquidation. Doesn't commit
         /// anything to Data yet — see SubTickWalk / FinishPriceWalk.</summary>
-        SubTickWalk BeginPriceWalk()
+        SubTickWalk BeginPriceWalk(bool asleep = false)
         {
             long oldPrice = Data.price;
             long newPrice = PriceModel.Next(oldPrice, _market);
             long[] prices = Data.hasPosition ? SubTickModel.Build(oldPrice, newPrice, _subTick) : new[] { newPrice };
-            return new SubTickWalk(this, prices, Data.hasPosition ? Data.position : null);
+            return new SubTickWalk(this, prices, Data.hasPosition ? Data.position : null, asleep);
         }
 
         /// <summary>Commits the walk's final price (always the slot's true close, regardless of how the position's

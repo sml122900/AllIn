@@ -16,6 +16,7 @@ namespace AllIn.Game.LoopScene
     {
         LoopApp _app;
         GameObject _root;
+        RectTransform _panel;
         TextMeshProUGUI _priceText, _liqText, _pctText, _workLine;
         RectTransform _dangerFill;
         Ui.Btn _prayBtn, _marginBtn, _stopBtn;
@@ -35,6 +36,7 @@ namespace AllIn.Game.LoopScene
             _root = canvas.gameObject;
             Ui.Image(canvas.transform, "Scrim", new Color(0.1f, 0, 0, 0.75f));
             var panel = Ui.Image(canvas.transform, "Panel", Palette.Panel).rectTransform.Box(0.5f, 0.5f, 820, 520);
+            _panel = panel;
 
             Ui.Text(panel, Texts.WatchTitle, 30, Palette.Down, TextAlignmentOptions.Center, true).rectTransform.Place(0, 1, 1, 1, 20, -60, 20, 20);
 
@@ -87,6 +89,14 @@ namespace AllIn.Game.LoopScene
             Refresh(loop, walk);
             while (!walk.Done)
             {
+                if (walk.LuckPending)
+                {
+                    // E3: the button comes up at the trigger sub-tick and nothing moves until it is pressed (even while working)
+                    Refresh(loop, walk);
+                    yield return LuckOffer.Show(_panel, 0.5f, 0.40f, 0, 0, 440).Run(Texts.LuckCoinLine, () => walk.UseLuck());
+                    Refresh(loop, walk);
+                    continue;
+                }
                 yield return new WaitForSecondsRealtime(walk.Index < 10 ? 0.5f : 1.5f);
                 if (walk.Done) break; // StopLoss may have fired while waiting
                 walk.Step();
@@ -120,9 +130,9 @@ namespace AllIn.Game.LoopScene
             _dangerFill.Place(0, 0, (float)pct, 1);
             _pctText.text = Texts.WatchPercentToLiq(1 - pct);
 
-            bool canAddMargin = !walk.Done && loop.Data.overseasCash > 0;
+            bool canAddMargin = !walk.Done && loop.Data.overseasCash > 0 && !walk.LuckPending && !walk.LuckUsed;
             _marginBtn.Interactable = canAddMargin;
-            _stopBtn.Interactable = !walk.Done;
+            _stopBtn.Interactable = !walk.Done && !walk.LuckPending && !walk.LuckUsed;
         }
     }
 }

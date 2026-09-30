@@ -120,5 +120,11 @@ namespace AllIn.Core
         public const int IllnessLostDays = 3;
         public const long CheckupCost = 50_000;
         public const int CheckupsPerDebtRelief = 10;
+
+        // E (v0.5) Part B numbers live in Core/Style.cs (Wardrobe, Cars) so a shop is one file.
+
+        // E (v0.5) — "무조건 승리" (luck). q defaults to 0 until the user picks from md/SIM_LUCK.md (DESIGN.md E1/E4).
+        public const double LuckQCoin = 0.0;          // per watch scene
+        public const double LuckRoeTarget = 1.0;      // E3: ROE +100% of (margin + added margin), exit fee deducted
     }
 }

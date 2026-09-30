@@ -168,6 +168,7 @@ namespace AllIn.Harness.Sim
             public int WorkedSlots;
             public int HopeCircuits;
             public int Starved;
+            public int LuckUses;            // E1: "무조건 승리" pressed (LuckSim)
             public int FirstLiquidationDay; // 0 = never
             // B5 v0.3 liquidation chain (sim E report)
             public int TailLiquidations;
@@ -187,11 +188,15 @@ namespace AllIn.Harness.Sim
         /// <summary>Report-only control: turns hunger off so the old food rule can be compared (BankruptcyStudy).</summary>
         public static bool StarveOff;
 
+        /// <summary>Sim-only override of the coin luck chance (LuckSim, DESIGN.md E4). 0 = the rule default, byte-identical to before.</summary>
+        public static double LuckQCoin;
+
         public static Outcome Play(IPlayer player, long seed)
         {
             var loop = Loop.NewRun(seed);
             if (Tuning != null) loop.Tuning = Tuning;
             if (StarveOff) loop.StarvationEnabled = false;
+            loop.LuckQCoin = LuckQCoin;
             loop.BankruptcyEnabled = false; // A~E are 30-day bots that never answer E9 (DESIGN.md D7); F below is the life sim
             var o = new Outcome();
             int guard = 0;
@@ -213,6 +218,7 @@ namespace AllIn.Harness.Sim
             o.WorkedSlots = s.workedSlots;
             o.HopeCircuits = s.hopeCircuits;
             o.Starved = s.starved;
+            o.LuckUses = s.luckUses;
             o.TailLiquidations = s.tailLiquidations;
             o.WatchesShown = s.watchesShown;
             o.LiquidationsDuringLock = s.liquidationsDuringLock;

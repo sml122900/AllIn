@@ -69,6 +69,7 @@ namespace AllIn.Core
                         if (d.bankruptSinceDay == 0) d.bankruptSinceDay = d.day;
                     }
                 }
+                ChargeCarUpkeep();                         // E8: same day as the rent, after it; never counted toward the arrears
             }
 
             if (d.day >= d.nextHealthCheckDay)
@@ -193,6 +194,7 @@ namespace AllIn.Core
             d.body = Math.Min(d.body, d.bodyMax);
             d.healthDebt++;
             d.tilted = false;
+            d.place = Place.Home;              // E6: back from sea he steps into his room
             d.peekedExchangeAtNight = false;
             d.lostUntilSlot = -1;
             d.e3AtSlot = -1;

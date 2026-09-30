@@ -24,6 +24,8 @@ namespace AllIn.Holdem
 
         // C3 prizes / re-entry
         public const long PubFee = 30_000;
+        /// <summary>E2 "무조건 승리": chance per called all-in the hero is part of. 0 until the user picks from md/SIM_LUCK.md.</summary>
+        public const double LuckQHoldem = 0.0;
         public const long SatelliteFee = 100_000;
         public const int ReentryUntilLevel = 3;       // bust during levels 1..3 → may re-enter
         public const double AiReentryChance = 0.5;     // provisional (DESIGN.md C3)
@@ -172,6 +174,7 @@ namespace AllIn.Holdem
         public LadderStage Stage;
         public int Wins;
         public int Steals, FreeBlinds, Folds, CalledAllIns, CalledWins;
+        public int LuckWins;                          // E2: called all-ins turned into wins by "무조건 승리"
         public int BbFacing, BbCalls;                 // BB hands that faced a steal shove / that the hero called
         public System.Collections.Generic.List<double> BustBb = new System.Collections.Generic.List<double>(); // stack (bb) before each fatal hand
         public System.Collections.Generic.List<string> Log = new System.Collections.Generic.List<string>();

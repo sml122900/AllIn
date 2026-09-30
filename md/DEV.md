@@ -16,7 +16,7 @@ _Reference moved out of CLAUDE.md to keep it short. Read when touching code/buil
 dotnet run --project tools/dotnet-harness -- test          # all Core + Holdem tests (NUnitLite)
 dotnet run --project tools/dotnet-harness -- test --where "class =~ Lotto"
 dotnet run --project tools/dotnet-harness -- sim           # loop + holdem sims -> md/SIM_REPORT.md, md/SIM_HOLDEM.md
-dotnet run --project tools/dotnet-harness -- sim loop      # or: sim holdem
+dotnet run --project tools/dotnet-harness -- sim loop      # or: sim holdem | sim mental | sim luck (-> md/SIM_LUCK.md, q balance for "무조건 승리")
 ```
 Unity (batchmode, editor closed; path `C:/Program Files/Unity/Hub/Editor/6000.3.21f1/Editor/Unity.exe`):
 ```
@@ -24,9 +24,16 @@ Unity.exe -batchmode -projectPath . -runTests -testPlatform EditMode -testResult
 Unity.exe -batchmode -quit -projectPath . -executeMethod AllIn.Game.Editor.ProjectSetup.Run            # scenes + build settings (idempotent)
 Unity.exe -batchmode -quit -projectPath . -executeMethod AllIn.Game.Editor.ProjectSetup.BuildWindows   # Builds/Win64/AllIn.exe
 Builds/Win64/AllIn.exe -screen-width 1280 -screen-height 720 -screen-fullscreen 0 -allinShots <dir>        # dev capture: scripted 30 days, screenshots every screen/event, uses <dir> as save dir
-Builds/Win64/AllIn.exe -screen-width 1280 -screen-height 720 -screen-fullscreen 0 -allinHoldemShots <dir>  # dev capture: Pro bot plays a Pub (HUD 4) + a few Main hands (HUD 0)
+Builds/Win64/AllIn.exe -screen-width 1280 -screen-height 720 -screen-fullscreen 0 -allinHoldemShots <dir>  # dev capture: Pro bot plays a Pub (HUD 4) + a few Main hands (HUD 0); forces luck q=0.3 to shoot the hold'em "무조건 승리"
+Builds/Win64/AllIn.exe -screen-width 1280 -screen-height 720 -screen-fullscreen 0 -allinShotsV5 <dir>       # dev capture (v0.5): street day/night, walking, car, clothes shop, wardrobe, car lot, companions, coin luck moment, settlement row
 ```
 Harness compiles `Core/`, `Holdem/`, `Tests/Core`, `Tests/Holdem` via `<Compile Include>` at C# 9 (Unity's version). When the editor is open (batchmode refuses to run), use unity-mcp: `AssetDatabase.Refresh` → check `EditorUtility.scriptCompilationFailed`, run tests via `TestRunnerApi`, build via `BuildPipeline.BuildPlayer`. Unity compile check: unity-mcp once per session (0 errors); if MCP is unavailable (editor closed), use the batchmode commands above; only if neither works write "compile unverified" in STATUS.
+
+## v0.5 code map
+- `Core/Style.cs` (Place, Appearance, Wardrobe catalog, Cars, Companion) · `Core/LoopStyle.cs` (MoveTo / BuyClothes / Equip / BuyCar / SellCar / upkeep / v1→v2 migration) · `Core/Paperdoll.cs` (layers, `ICharacterLayerSource`, `CodeLayerSource` = string grids + palettes, pure C#; `DollPose`) · `Core/CarArt.cs`.
+- Luck: `Loop.LuckQCoin` / `LuckRng`, `SubTickWalk.LuckTriggered/LuckPending/UseLuck()`; `LadderConfig.LuckQ`, `Ladder.LuckRng`, `LadderHand.LuckTriggered/LuckFlipped`. Rule defaults (`Rules.LuckQCoin`, `HoldemRules.LuckQHoldem`) are 0. UI: `Game/UI/LuckUi.cs` (`LuckOffer`).
+- Presentation: `Game/World/WorldView.cs` (street, hero, car, companions, walking), `Game/World/SpriteCache.cs` (Core pixels → Point-filtered sprites), `Game/Loop/ShopScreens.cs` (clothes shop, wardrobe, car lot), `Game/Dev/EditorDebugMenu.cs` (F9 in the editor: companions).
+- Saves are `SaveData.version` 2; `Loop.FromSave` migrates v1 (default look, starter uniform, no car, luck stream from the seed).
 
 ## Conventions (detail)
 - Actions implement `Core/Actions/IAction`. New income/gamble sources plug in the same way.

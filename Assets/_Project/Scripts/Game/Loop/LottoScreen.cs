@@ -55,6 +55,8 @@ namespace AllIn.Game.LoopScene
             Refresh();
         }
 
+        public bool Visible => _root != null && _root.activeSelf;
+
         public void Hide() => _root.SetActive(false);
 
         void OnBuy()

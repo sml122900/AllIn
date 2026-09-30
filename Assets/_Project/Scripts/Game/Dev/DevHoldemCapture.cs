@@ -52,6 +52,7 @@ namespace AllIn.Game.Dev
             Time.timeScale = 4f;
             app.AutoHero = new PushHappy();
             app.OnMoment = Moment;
+            app.LuckQOverride = 0.3;   // v0.5: the rule default is 0, so the capture forces it to see the "무조건 승리" scene
             // Pub at study 4 (HUD advice), then a Main at study 2 (ladder stages), then other seeds until the key scenes were all seen
             long[] seeds = { 7, 21, 33, 44, 58, 61, 72, 85 };
             int n = 0;
@@ -66,13 +67,20 @@ namespace AllIn.Game.Dev
                     bool main = n % 2 == 1;
                     app.StartTournament(main ? TournamentKind.Main : TournamentKind.Pub, main ? 2 : 3, seeds[n++]);
                 }
+                if (UI.LuckOffer.Current != null)
+                {
+                    var offer = UI.LuckOffer.Current;
+                    yield return new WaitForSecondsRealtime(0.25f);
+                    if (_seen.Add("luck_holdem")) yield return Shot("luck_holdem");
+                    offer.Press();
+                }
                 yield return null;
             }
             Time.timeScale = 1f;
             Application.Quit();
         }
 
-        bool Enough() => _seen.Contains("steal") && _seen.Contains("call_won") && _seen.Contains("call_survived") && _seen.Contains("call_out") && _seen.Contains("bubble") && _seen.Contains("bb_facing_shove") && _seen.Contains("result");
+        bool Enough() => _seen.Contains("steal") && _seen.Contains("call_won") && _seen.Contains("call_survived") && _seen.Contains("call_out") && _seen.Contains("bubble") && _seen.Contains("bb_facing_shove") && _seen.Contains("luck_holdem") && _seen.Contains("result");
 
         IEnumerator Moment(string name)
         {

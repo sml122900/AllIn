@@ -23,6 +23,8 @@ namespace AllIn.Harness.Sim
                 ok &= Holdem.LadderSim.Run(runs, Path.Combine(repoRoot, "md", "SIM_HOLDEM.md"));
             if (which == "holdem-v1") // the old 9-player table sim (no longer on the game path); record only
                 ok &= Holdem.HoldemSim.Run(runs, Path.Combine(repoRoot, "md", "SIM_HOLDEM_V1.md"));
+            if (which == "luck")
+                ok &= LuckSim.Run(runs, Path.Combine(repoRoot, "md", "SIM_LUCK.md"));
             if (which == "mental")
                 ok &= MentalSim.Run(runs, Path.Combine(repoRoot, "md", "SIM_MENTAL.md"));
             return ok ? 0 : 1;

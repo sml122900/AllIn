@@ -85,6 +85,12 @@ namespace AllIn.Core
         public const string WatchAddMargin = "증거금 추가";
         public const string WatchStopLoss = "손절";
         public const string WatchWorkLine = "손님이 부른다.";
+
+        // E1 무조건 승리 (placeholder copy)
+        public const string LuckButton = "무조건 승리";
+        public const string LuckCoinLine = "…가격이 돌아선다.";
+        public const string LuckHoldemLine = "…보드가 넘어간다.";
+        public const string E7Luck = "무조건 승리";
         public static string WatchPercentToLiq(double pct) => "청산까지 " + Fmt.Pct(pct, 0);
         public const string WatchNoOverseasCash = "잔고 없음 — 입금 후 24시간 뒤 전송 가능";
 
@@ -309,6 +315,51 @@ namespace AllIn.Core
         public const string VoyageCount = "원양어선 승선";
         public const string E7Continue = "계속 살기";
         public static string E7TitleMonth(int month) => month <= 1 ? E7Title : month + "개월차 정산";
+
+        // v0.5 Part B — street, clothes, car, companions (all placeholder copy, DESIGN.md E5–E10)
+        public static readonly string[] PlaceNames = { "집", "식당", "복권방", "홀덤펍", "은행·거래소", "옷가게", "자동차 매장" };
+        public const string PubClosed = "홀덤은 아직 여기서 이어지지 않는다.";
+        public const string AtHomeHint = "집이다.";
+        public static readonly string[] ClothPartNames = { "상의", "하의", "신발", "액세서리" };
+        public static readonly string[] ClothTierNames = { "기본", "브랜드", "명품" };
+        static readonly string[][] ClothShapeNames =
+        {
+            new[] { "긴팔티", "티셔츠", "후드", "재킷", "코트" },
+            new[] { "작업 바지", "반바지", "슬랙스" },
+            new[] { "부츠", "운동화" },
+            new[] { "손목시계", "가방" },
+        };
+        static readonly string[] StarterNames = { "전역복 상의", "전역복 바지", "군화" };
+        public static string ClothName(ClothPart part, ClothTier tier, int variant) =>
+            Wardrobe.IsStarter(Wardrobe.Id(part, tier, variant)) ? StarterNames[(int)part] : ClothTierNames[(int)tier] + " " + ClothShapeNames[(int)part][variant];
+        public static readonly string[] SkinNames = { "밝은 피부", "중간 피부", "어두운 피부" };
+        public static readonly string[] HairNames = { "짧은 머리", "중간 머리", "긴 머리" };
+        public const string ShopClothTitle = "옷가게";
+        public const string ShopClothPay = "은행 계좌에서 결제";
+        public const string Owned = "보유";
+        public const string Buy = "구매";
+        public const string Equip = "착용";
+        public const string Worn = "착용 중";
+        public const string Unequip = "벗기";
+        public const string WardrobeTitle = "옷장";
+        public const string WardrobeMirror = "거울";
+        public const string NoCash = "돈이 모자란다.";
+        public const string BoughtCloth = "옷을 샀다.";
+        public const string CarShopTitle = "자동차 매장";
+        public static readonly string[] CarNames = { "", "중고 경차", "국산 중형", "수입 세단", "슈퍼카" };
+        public static string CarUpkeepLine(long n) => "월 유지비 " + Fmt.Won(n);
+        public static string CarSellLine(long n) => "팔면 " + Fmt.Won(n);
+        public const string CarHave = "보유 중";
+        public const string CarBuy = "구매";
+        public const string CarSell = "팔기";
+        public const string CarOnlyOne = "차는 한 대만 가질 수 있다.";
+        public const string CarNone = "차가 없다.";
+        public const string CarBought = "차를 샀다.";
+        public const string CarSold = "차를 팔았다.";
+        public static string CarUpkeepPaid(long n) => "차 유지비 " + Fmt.Won(n) + "이 빠져나갔다.";
+        public static string CarUpkeepUnpaid(long n) => "차 유지비 " + Fmt.Won(n) + "을 내지 못했다.";
+        public const string CompanionSpouse = "배우자";
+        public const string CompanionChild = "자녀";
 
         // HUD
         public const string Assets = "총자산";

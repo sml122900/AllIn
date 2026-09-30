@@ -30,6 +30,8 @@ namespace AllIn.Game.HoldemScene
         /// <summary>Dev capture: when set, this answers for the hero.</summary>
         public ILadderPlayer AutoHero;
         public Func<string, IEnumerator> OnMoment;
+        /// <summary>Dev capture only: forces the "무조건 승리" chance (the rule default is HoldemRules.LuckQHoldem = 0).</summary>
+        public double? LuckQOverride;
 
         public Ladder Ladder { get; private set; }
         public bool AtResult { get; private set; }
@@ -123,7 +125,9 @@ namespace AllIn.Game.HoldemScene
             _kind = kind;
             _study = study;
             _seed = seed;
-            Ladder = new Ladder(LadderConfig.For(kind, study), new Xoshiro128((ulong)seed));
+            var cfg = LadderConfig.For(kind, study);
+            if (LuckQOverride.HasValue) cfg.LuckQ = LuckQOverride.Value;
+            Ladder = new Ladder(cfg, new Xoshiro128((ulong)seed)) { LuckRng = new Xoshiro128((ulong)seed ^ 0x1AC1AC1AC1ACUL) };
             _menu.gameObject.SetActive(false);
             ClearOverlay();
             AtResult = false;
@@ -325,6 +329,11 @@ namespace AllIn.Game.HoldemScene
             }
             if (OnMoment != null) yield return OnMoment("called_reveal");
             yield return Wait(0.9f);
+            if (h.LuckTriggered)
+            {
+                // E2: the call is made, the cards are still face down — the button must be pressed to turn them
+                yield return LuckOffer.Show(_table, 0.5f, 0.5f, 0, TableCy + 100, 440).Run(Texts.LuckHoldemLine);
+            }
             for (int i = 0; i < 3; i++) _board[i].SetCard(h.Board[i]);
             yield return Wait(0.55f);
             yield return Wait(HoldemRules.TurnDelayAllIn);
@@ -485,7 +494,7 @@ namespace AllIn.Game.HoldemScene
             ClearOverlay();
             _overlay.SetAsLastSibling();
             Ui.Image(_overlay, "Scrim", new Color(0, 0, 0, 0.8f), raycast: true);
-            var panel = Ui.Image(_overlay, "Panel", Palette.Panel, raycast: true).rectTransform.Box(0.5f, 0.5f, 760, 520);
+            var panel = Ui.Image(_overlay, "Panel", Palette.Panel, raycast: true).rectTransform.Box(0.5f, 0.5f, 760, 570);
             Ui.Text(panel, Texts.HoldemResultTitle + " · " + Texts.HoldemKindNames[(int)Ladder.Config.Kind], 30, Palette.Accent, TextAlignmentOptions.Center, true)
               .rectTransform.Place(0, 1, 1, 1, 20, -70, 20, 20);
             string Row(string k, string v) => "<color=" + Ui.Hex(Palette.Dim) + ">" + k + "</color>  " + v;
@@ -499,6 +508,7 @@ namespace AllIn.Game.HoldemScene
                 Row(Texts.HoldemHandsPlayed, r.HandsPlayed.ToString()),
                 Row(Texts.LadderCalledAllIns, r.CalledAllIns + " (승 " + r.CalledWins + ")"),
                 Row(Texts.LadderSteals, r.Steals.ToString()),
+                Row(Texts.E7Luck, r.LuckWins + "회"),
                 Row(Texts.HoldemReentries, r.Reentries + "회"),
                 Row(Texts.HoldemBadBeats, r.BadBeats + "회"),
                 Row(Texts.HoldemBubbleReached, r.BubbleReached ? "O" : "X"),
