@@ -20,11 +20,7 @@ namespace AllIn.Game.HoldemScene
     {
         public const string SceneName = "Holdem";
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        static void Hook() => SceneManager.sceneLoaded += (scene, _) =>
-        {
-            if (scene.name == SceneName && FindAnyObjectByType<HoldemApp>() == null) new GameObject("HoldemApp").AddComponent<HoldemApp>();
-        };
+        // v1 (9-seat full table): no longer launched — LadderApp owns the Holdem scene. Kept compiling for reference.
 
         /// <summary>Dev capture: when set, a bot answers for the hero and this is called whenever the hero would be asked.</summary>
         public IDecider AutoHero;

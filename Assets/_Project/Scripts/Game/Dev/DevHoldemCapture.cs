@@ -4,21 +4,27 @@ using System.Collections.Generic;
 using System.IO;
 using AllIn.Game.HoldemScene;
 using AllIn.Holdem;
-using AllIn.Holdem.Brain;
+using HoldemLadder = AllIn.Holdem.Ladder;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace AllIn.Game.Dev
 {
     /// <summary>
-    /// Dev-only: launched with <c>-allinHoldemShots &lt;dir&gt;</c>, opens Holdem.unity, lets a Pro bot play the hero seat through
-    /// a Pub tournament at study level 4 (then a few hands at level 0), screenshots each kind of moment once, and quits.
+    /// Dev-only: launched with <c>-allinHoldemShots &lt;dir&gt;</c>, opens Holdem.unity (v2 ladder), lets a scripted hero play
+    /// (push-heavy so calls, steals, cover-survivals and the bubble show up quickly), screenshots each kind of moment once, and quits.
     /// </summary>
     public sealed class DevHoldemCapture : MonoBehaviour
     {
         string _dir;
         int _shot;
         readonly HashSet<string> _seen = new HashSet<string>();
+
+        /// <summary>Pushes every hand except the very worst: enough calls and steals to see every scene.</summary>
+        sealed class PushHappy : ILadderPlayer
+        {
+            public bool AllIn(LadderHand h) => HoldemLadder.HandPercentile(h) <= 60;
+        }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Arm()
@@ -37,27 +43,36 @@ namespace AllIn.Game.Dev
         IEnumerator Start()
         {
             yield return null;
-            SceneManager.LoadScene(HoldemApp.SceneName);
-            HoldemApp app = null;
-            while ((app = FindAnyObjectByType<HoldemApp>()) == null) yield return null;
+            SceneManager.LoadScene(LadderApp.SceneName);
+            LadderApp app = null;
+            while ((app = FindAnyObjectByType<LadderApp>()) == null) yield return null;
             yield return new WaitForSecondsRealtime(0.5f);
             yield return Shot("menu");
 
             Time.timeScale = 4f;
-            app.AutoHero = BotFactory.Instance.Create(PersonalityId.Pro);
+            app.AutoHero = new PushHappy();
             app.OnMoment = Moment;
-            app.StartTournament(TournamentKind.Pub, 4, 7);
-            while (!app.AtResult) yield return null;
-            yield return new WaitForSecondsRealtime(0.3f);
-            yield return Shot("result_study4");
-
-            _seen.Clear();
-            app.StartTournament(TournamentKind.Main, 0, 11);
-            float until = Time.realtimeSinceStartup + 25f;
-            while (!app.AtResult && Time.realtimeSinceStartup < until && _seen.Count < 3) yield return null;
+            // Pub at study 4 (HUD advice), then a Main at study 2 (ladder stages), then other seeds until the key scenes were all seen
+            long[] seeds = { 7, 21, 33, 44, 58, 61, 72, 85 };
+            int n = 0;
+            app.StartTournament(TournamentKind.Pub, 4, seeds[n++]);
+            float until = Time.realtimeSinceStartup + 120f;
+            while (Time.realtimeSinceStartup < until)
+            {
+                if (app.AtResult)
+                {
+                    yield return new WaitForSecondsRealtime(0.2f);
+                    if (n >= seeds.Length || Enough()) break;
+                    bool main = n % 2 == 1;
+                    app.StartTournament(main ? TournamentKind.Main : TournamentKind.Pub, main ? 2 : 3, seeds[n++]);
+                }
+                yield return null;
+            }
             Time.timeScale = 1f;
             Application.Quit();
         }
+
+        bool Enough() => _seen.Contains("steal") && _seen.Contains("call_won") && _seen.Contains("call_survived") && _seen.Contains("call_out") && _seen.Contains("bubble") && _seen.Contains("result");
 
         IEnumerator Moment(string name)
         {

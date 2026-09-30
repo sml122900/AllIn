@@ -168,6 +168,10 @@ namespace AllIn.Holdem
         public int BustedAtLevel;   // 1-based; 0 if not busted (won)
         public int BadBeats;
         public bool BubbleReached;
+        // v2 (DESIGN.md C-v2): the ladder model fills these; Finish is 1 (champion) / 2-3 (podium draw) / 0 otherwise
+        public LadderStage Stage;
+        public int Wins;
+        public int Steals, FreeBlinds, Folds, CalledAllIns, CalledWins;
         public System.Collections.Generic.List<string> Log = new System.Collections.Generic.List<string>();
     }
 }
