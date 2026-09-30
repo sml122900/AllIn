@@ -64,6 +64,71 @@ namespace AllIn.Harness.Sim
             return r;
         }
 
+        sealed class HopeRun
+        {
+            public long Slots, SlotsHigh, SlotsMax;   // slots sampled / mental >= 80 / mental == 100
+            public List<int> RecoveryDays = new List<int>();
+            public int LiquidationsBelow80, Unrecovered;
+            public int HopeCircuits, HopeReadyDays;
+        }
+
+        /// <summary>LifeSense on, chosen mental variant, bankruptcy on: plays to the first declaration or 730 days, sampling mental every slot.</summary>
+        static HopeRun HopeStudy(Func<Loop, Action<Loop>> makeBot, long seed, string variant)
+        {
+            var loop = Loop.NewRun(seed);
+            loop.PopEvent(); loop.PopEvent();
+            loop.Tuning = MentalTuning.ByName(variant);
+            var d = loop.Data;
+            var bot = makeBot(loop);
+            var r = new HopeRun();
+            int guard = 0, recoveryStartDay = 0;
+            int lastAbs = loop.AbsSlot, lastDayCounted = 0;
+            while (d.day <= 730 && guard++ < 400_000)
+            {
+                d.pendingEvents.Clear();
+                int liq = d.stats.liquidations;
+                if (loop.Finished) loop.ContinueLife(); else bot(loop);
+                if (d.stats.liquidations > liq && recoveryStartDay == 0)
+                {
+                    if (d.mental < 80) { recoveryStartDay = d.day; r.LiquidationsBelow80++; }
+                }
+                if (recoveryStartDay > 0 && d.mental >= 80) { r.RecoveryDays.Add(d.day - recoveryStartDay); recoveryStartDay = 0; }
+                int adv = Math.Max(1, loop.AbsSlot - lastAbs);
+                lastAbs = loop.AbsSlot;
+                r.Slots += adv;
+                if (d.mental >= 80) r.SlotsHigh += adv;
+                if (d.mental >= 100) r.SlotsMax += adv;
+                if (d.slot == Slot.Dawn && d.day != lastDayCounted) { lastDayCounted = d.day; if (d.mental >= 80 && d.hasLastWin) r.HopeReadyDays++; }
+                if (loop.IsBankrupt) break;
+            }
+            if (recoveryStartDay > 0) r.Unrecovered++;
+            r.HopeCircuits = d.stats.hopeCircuits;
+            return r;
+        }
+
+        public static void AppendHope(StringBuilder sb, int runs)
+        {
+            sb.AppendLine();
+            sb.AppendLine("## I 측정 — 희망회로 구간(mental ≥ 80) 비율 (9620fe9 회신, 보고 전용·규칙 변경 없음)");
+            sb.AppendLine();
+            sb.AppendLine("LifeSense on + 파산 on, 첫 파산 선언 또는 730일까지, 각 1,000런. 슬롯 비율은 매 슬롯 끝의 mental로 샘플. 회복 일수 = mental < 80이 된 청산 후, 다시 ≥ 80이 될 때까지(그 사이 또 청산이 나도 처음 기준; 회복 못 한 채 끝난 런은 제외하고 개수만 표기). **E4는 헤드리스 봇이 코인 화면을 열지 않고 수익 청산도 한 적이 없어(직전 수익 기록 자체가 안 생김) 실제 발동·조건 충족 일수가 0이다. 이 봇들로는 E4 빈도를 잴 수 없고, mental ≥ 80 슬롯 비율이 사람이 노출될 상한에 가깝다.**");
+            sb.AppendLine();
+            sb.AppendLine("| 봇 | 변형 | mental ≥ 80 슬롯 비율 | mental = 100 슬롯 비율 | 청산 후 ≥ 80 복귀 일수 중앙 (p10 / p90) [복귀 n / 미복귀 n] | 런당 E4 발동 | 런당 E4 조건 충족 일수 |");
+            sb.AppendLine("|---|---|---|---|---|---|---|");
+            LifeSense.On = true;
+            foreach (var (name, bot) in new[] { ("E", EBot), ("F", FBot) })
+                foreach (var v in new[] { "V3", "V1", "V2" })
+                {
+                    var rs = Enumerable.Range(1, runs).Select(sd => HopeStudy(bot, sd, v)).ToList();
+                    double slots = rs.Sum(x => (double)x.Slots);
+                    var rec = rs.SelectMany(x => x.RecoveryDays).ToList();
+                    string label = v == "V3" ? "V3 (채택)" : v == "V1" ? "V1 (잠 +5만)" : "V2 (연속 보너스만)";
+                    sb.AppendLine($"| {name} | {label} | {LoopSim.Pct(rs.Sum(x => (double)x.SlotsHigh) / slots)} | {LoopSim.Pct(rs.Sum(x => (double)x.SlotsMax) / slots)} | {F(Pctl(rec, 0.5))}일 ({F(Pctl(rec, 0.1))} / {F(Pctl(rec, 0.9))}) [{rec.Count} / {rs.Sum(x => x.Unrecovered)}] | {rs.Average(x => (double)x.HopeCircuits).ToString("F2", CultureInfo.InvariantCulture)} | {rs.Average(x => (double)x.HopeReadyDays).ToString("F1", CultureInfo.InvariantCulture)} |");
+                    Console.WriteLine($"hope study {name} {v}: >=80 {LoopSim.Pct(rs.Sum(x => (double)x.SlotsHigh) / slots)}, =100 {LoopSim.Pct(rs.Sum(x => (double)x.SlotsMax) / slots)}");
+                }
+            LifeSense.On = false;
+        }
+
         static Func<Loop, Action<Loop>> EBot => _ => { var p = LoopSim.Make("E"); return l => p.PlaySlot(l); };
 
         /// <summary>The sim F bot (100x all-in, whole bank to the exchange, job in the evenings), one slot at a time.</summary>

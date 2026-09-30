@@ -430,6 +430,7 @@ namespace AllIn.Harness.Sim
 
             AppendLifeSim(sb, runs);
             BankruptcyStudy.Append(sb, runs);
+            BankruptcyStudy.AppendHope(sb, runs);
 
             Directory.CreateDirectory(Path.GetDirectoryName(reportPath));
             File.WriteAllText(reportPath, sb.ToString().Replace("\r\n", "\n"));
