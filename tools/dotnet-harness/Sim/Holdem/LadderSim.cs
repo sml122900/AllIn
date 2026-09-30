@@ -41,7 +41,7 @@ namespace AllIn.Harness.Sim.Holdem
             var cfg = LadderConfig.For(kind, 4);
             cfg.BbAnte = ante;
             cfg.AverageStacks = avg;
-            var l = new Ladder(cfg, new Xoshiro128((ulong)seed));
+            var l = new Ladder(cfg, new Xoshiro128((ulong)seed)) { LuckRng = new Xoshiro128((ulong)seed ^ 0x1AC1AC1AC1ACUL) };
             ILadderPlayer p = bot == "직감" ? new GutBot() : bot == "차트" ? (ILadderPlayer)ChartPlayer.Instance : new RandomBot(seed);
             l.RunToEnd(p);
             var r = l.Result;

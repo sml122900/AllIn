@@ -52,10 +52,10 @@ namespace AllIn.Holdem.Tests
         }
 
         [Test]
-        public void DefaultQ_IsZero()
+        public void RuleDefaults_AreTheUsersChoice_ThreePercentHoldem_TwoPercentCoin()
         {
-            Assert.AreEqual(0.0, LadderConfig.For(TournamentKind.Main).LuckQ);
-            Assert.AreEqual(0.0, HoldemRules.LuckQHoldem);
+            Assert.AreEqual(0.03, HoldemRules.LuckQHoldem);
+            Assert.AreEqual(0.02, Rules.LuckQCoin);
         }
 
         [Test]

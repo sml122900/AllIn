@@ -15,11 +15,17 @@ namespace AllIn.Core
         /// <summary>Rounded to whole won (a 100M-won price loses nothing meaningful; saves stay exact).</summary>
         public long Next(long price, IRng rng) => Math.Max(1L, (long)Math.Round(price * Math.Exp(LogReturn(rng))));
 
-        public static double LogReturn(IRng rng)
+        /// <summary>Sim override of the drift correction (DriftSim compares before / after); the game uses the rule constant.</summary>
+        public static double DriftC = Rules.CoinDriftC;
+
+        /// <summary>The capped Student-t log-return before the correction (what the drift measurement samples).</summary>
+        public static double RawLogReturn(IRng rng)
         {
             double r = rng.NextStudentT3() * Rules.CoinTickScale;
             return Math.Max(-Rules.CoinTickCap, Math.Min(Rules.CoinTickCap, r));
         }
+
+        public static double LogReturn(IRng rng) => RawLogReturn(rng) - DriftC;
     }
 
     /// <summary>

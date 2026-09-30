@@ -24,8 +24,8 @@ namespace AllIn.Holdem
 
         // C3 prizes / re-entry
         public const long PubFee = 30_000;
-        /// <summary>E2 "무조건 승리": chance per called all-in the hero is part of. 0 until the user picks from md/SIM_LUCK.md.</summary>
-        public const double LuckQHoldem = 0.0;
+        /// <summary>E2 "무조건 승리": chance per called all-in the hero is part of. 3% (user decision 2026-09-30).</summary>
+        public const double LuckQHoldem = 0.03;
         public const long SatelliteFee = 100_000;
         public const int ReentryUntilLevel = 3;       // bust during levels 1..3 → may re-enter
         public const double AiReentryChance = 0.5;     // provisional (DESIGN.md C3)

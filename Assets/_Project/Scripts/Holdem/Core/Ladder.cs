@@ -40,7 +40,9 @@ namespace AllIn.Holdem
         /// <summary>C-v2 rev.2: opponent stacks come from the tournament average (lognormal), not from the hero's stack; re-entry restarts at the starting chips.</summary>
         public bool AverageStacks = true;
         /// <summary>E2: chance a called all-in becomes a guaranteed win (DESIGN.md E1/E2). Sim-tunable; default 0.</summary>
-        public double LuckQ = HoldemRules.LuckQHoldem;
+        public double LuckQ = DefaultLuckQ;
+        /// <summary>Starting value of <see cref="LuckQ"/> for new configs (tests / sims that must not see luck set it to 0; the game never touches it).</summary>
+        public static double DefaultLuckQ = HoldemRules.LuckQHoldem;
 
         public const long BaseBb = 100;
         public const int MaxLevel = 20;

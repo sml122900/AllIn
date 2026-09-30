@@ -16,7 +16,7 @@ _Reference moved out of CLAUDE.md to keep it short. Read when touching code/buil
 dotnet run --project tools/dotnet-harness -- test          # all Core + Holdem tests (NUnitLite)
 dotnet run --project tools/dotnet-harness -- test --where "class =~ Lotto"
 dotnet run --project tools/dotnet-harness -- sim           # loop + holdem sims -> md/SIM_REPORT.md, md/SIM_HOLDEM.md
-dotnet run --project tools/dotnet-harness -- sim loop      # or: sim holdem | sim mental | sim luck (-> md/SIM_LUCK.md, q balance for "무조건 승리")
+dotnet run --project tools/dotnet-harness -- sim loop      # or: sim holdem | sim mental | sim luck (-> md/SIM_LUCK.md, q balance) | sim drift (-> md/SIM_DRIFT.md, price-drift check) | sim ladder (-> md/SIM_LADDER_ECON.md, satellite/pub economics grid)
 ```
 Unity (batchmode, editor closed; path `C:/Program Files/Unity/Hub/Editor/6000.3.21f1/Editor/Unity.exe`):
 ```

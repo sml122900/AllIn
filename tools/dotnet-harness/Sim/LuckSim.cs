@@ -13,7 +13,7 @@ namespace AllIn.Harness.Sim
     public static class LuckSim
     {
         static readonly double[] HoldemQs = { 0, 0.01, 0.02, 0.03, 0.05 };
-        static readonly double[] CoinQs = { 0, 0.02, 0.05, 0.10, 0.15 };
+        static readonly double[] CoinQs = { 0, 0.005, 0.01, 0.015, 0.02, 0.05, 0.10, 0.15 };
 
         sealed class HRow
         {
@@ -97,12 +97,12 @@ namespace AllIn.Harness.Sim
                 var c = Enumerable.Range(1, runs).Select(s => LoopSim.Play(LoopSim.Make("C"), s)).ToList();
                 var d = Enumerable.Range(1, runs).Select(s => LoopSim.Play(LoopSim.Make("D"), s)).ToList();
                 var e = Enumerable.Range(1, runs).Select(s => LoopSim.Play(LoopSim.Make("E"), s)).ToList();
-                LoopSim.LuckQCoin = 0;
+                LoopSim.LuckQCoin = Rules.LuckQCoin;
                 double cLiq = c.Count(o => o.Liquidations > 0) / (double)runs;
                 double eAvg = e.Average(o => (double)o.Final);
                 if (q == 0) eMeanBase = eAvg;
                 coinOk[q] = (cLiq >= 0.80, eAvg < Rules.StartingCash, LoopSim.Percentile(e.Select(o => o.Final), 0.5) < Rules.StartingCash);
-                sb.AppendLine($"| {P(q)} | {P(cLiq)} | {Fmt.Won(LoopSim.Percentile(c.Select(o => o.Final), 0.5))} | {Fmt.Won((long)c.Average(o => (double)o.Final))} | {F2(d.Average(o => o.Liquidations))} | {Fmt.Won(LoopSim.Percentile(d.Select(o => o.Final), 0.5))} | {Fmt.Won((long)d.Average(o => (double)o.Final))} | {F2(e.Average(o => o.Liquidations))} | {Fmt.Won(LoopSim.Percentile(e.Select(o => o.Final), 0.5))} | {Fmt.Won((long)eAvg)} | {F2(e.Average(o => o.LuckUses))} |");
+                sb.AppendLine($"| {P(q)} | {P(cLiq)} | {Fmt.Won(LoopSim.Percentile(c.Select(o => o.Final), 0.5))} | {Fmt.Won((long)c.Average(o => (double)o.Final))} | {F2(d.Average(o => o.Liquidations))} | {Fmt.Won(LoopSim.Percentile(d.Select(o => o.Final), 0.5))} | {Fmt.Won((long)d.Average(o => (double)o.Final))} | {F2(e.Average(o => o.Liquidations))} | {Fmt.Won(LoopSim.Percentile(e.Select(o => o.Final), 0.5))} | {Fmt.Won((long)eAvg)} (±{Fmt.Won((long)(Math.Sqrt(e.Sum(o => Math.Pow(o.Final - eAvg, 2)) / (runs - 1)) / Math.Sqrt(runs)))}) | {F2(e.Average(o => o.LuckUses))} |");
             }
             bool eMeanBaseOk = coinOk[0].eMean;
             double bestC = 0;

@@ -32,7 +32,10 @@ namespace AllIn.Core
         public IRng LuckRng => _luck;
 
         /// <summary>Chance a watch scene offers "무조건 승리" (DESIGN.md E3). Sim-tunable, not saved; the rule default is 0.</summary>
-        public double LuckQCoin { get; set; } = Rules.LuckQCoin;
+        public double LuckQCoin { get; set; } = DefaultLuckQCoin;
+
+        /// <summary>Starting value of <see cref="LuckQCoin"/> for new Loops (sims / tests that must not see luck set it to 0; the game never touches it).</summary>
+        public static double DefaultLuckQCoin = Rules.LuckQCoin;
 
         const ulong LuckSalt = 0x1AC1AC1AC1ACUL;
 

@@ -39,6 +39,8 @@ namespace AllIn.Core
         public const long CoinStartPrice = 100_000_000; // whole won: every saved number is integral so JSON saves round-trip exactly
         public const double CoinTickScale = 0.010;
         public const double CoinTickCap = 0.25;
+        /// <summary>Martingale correction (DESIGN.md B5 drift note): subtracted from every capped tick log-return so that E[P(t+1)/P(t)] = 1. 0 = uncorrected.</summary>
+        public const double CoinDriftC = 0.0001353;   // ln E[e^r] of the capped tick, 10M-sample fixed-seed Monte Carlo (md/SIM_DRIFT.md)
         public static readonly int[] Leverages = { 5, 10, 25, 50, 100 };
         public const int DefaultLeverage = 10;
         public const double FeeRate = 0.0005;
@@ -123,8 +125,8 @@ namespace AllIn.Core
 
         // E (v0.5) Part B numbers live in Core/Style.cs (Wardrobe, Cars) so a shop is one file.
 
-        // E (v0.5) — "무조건 승리" (luck). q defaults to 0 until the user picks from md/SIM_LUCK.md (DESIGN.md E1/E4).
-        public const double LuckQCoin = 0.0;          // per watch scene
+        // E (v0.5) — "무조건 승리" (luck). q fixed by the user: coin 2% per watch scene, hold'em 3% per called all-in (DESIGN.md E1).
+        public const double LuckQCoin = 0.02;         // per watch scene (user decision 2026-09-30, DESIGN.md E1)
         public const double LuckRoeTarget = 1.0;      // E3: ROE +100% of (margin + added margin), exit fee deducted
     }
 }

@@ -275,7 +275,7 @@ namespace AllIn.Core.Tests
             for (int i = 0; i < 200000; i++)
             {
                 double x = StudentTPriceModel.LogReturn(r);
-                Assert.That(x >= -0.25 && x <= 0.25);
+                Assert.That(x >= -0.25 - Rules.CoinDriftC - 1e-12 && x <= 0.25 - Rules.CoinDriftC + 1e-12, "the cap is on the raw tick; the martingale constant is subtracted after it");
             }
         }
     }

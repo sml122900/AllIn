@@ -25,6 +25,10 @@ namespace AllIn.Harness.Sim
                 ok &= Holdem.HoldemSim.Run(runs, Path.Combine(repoRoot, "md", "SIM_HOLDEM_V1.md"));
             if (which == "luck")
                 ok &= LuckSim.Run(runs, Path.Combine(repoRoot, "md", "SIM_LUCK.md"));
+            if (which == "ladder")
+                ok &= Holdem.LadderEconSim.Run(runs, Path.Combine(repoRoot, "md", "SIM_LADDER_ECON.md"));
+            if (which == "drift")
+                ok &= DriftSim.Run(runs, Path.Combine(repoRoot, "md", "SIM_DRIFT.md"));
             if (which == "mental")
                 ok &= MentalSim.Run(runs, Path.Combine(repoRoot, "md", "SIM_MENTAL.md"));
             return ok ? 0 : 1;

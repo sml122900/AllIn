@@ -104,6 +104,10 @@ namespace AllIn.Harness.Sim
         {
             bool _deposited;
             int _cyclesEntered;
+            /// <summary>Drift control (DriftSim): trade direction, and no job at all (coin only).</summary>
+            public Direction Dir = Direction.Long;
+            public bool NoWork;
+            void Idle(Loop loop) { if (NoWork) loop.Pass(); else WorkOrRest(loop); }
             public int Liq25, Liq100, Tail25, Tail100; // per-leverage liquidation/tail breakdown (report-only, read after the run)
             public string Name => "E";
             public string Description => "청산 체인: 25배 올인 롱 → 청산되면 은행 잔고 절반 입금 → 전송 가능해지면 100배 올인 → 반복, 알바 병행";
@@ -111,14 +115,14 @@ namespace AllIn.Harness.Sim
             {
                 var d = loop.Data;
                 LifeSense.Tick(loop);
-                if (!_deposited) { SweepToOverseas(loop, ref _deposited); WorkOrRest(loop); return; }
+                if (!_deposited) { SweepToOverseas(loop, ref _deposited); Idle(loop); return; }
                 if (!loop.DomesticLocked && d.domesticCash > 0) loop.TransferDomesticToOverseas(d.domesticCash);
 
                 if (!d.hasPosition && d.overseasCash > 0)
                 {
                     int lev = _cyclesEntered == 0 ? 25 : 100;
                     int liqBefore = d.stats.liquidations, tailBefore = d.stats.tailLiquidations;
-                    if (loop.Do(new CoinOpenAction(Direction.Long, lev, d.overseasCash)).Ok)
+                    if (loop.Do(new CoinOpenAction(Dir, lev, d.overseasCash)).Ok)
                     {
                         _cyclesEntered++;
                         RecordLiquidation(d, lev, liqBefore, tailBefore);
@@ -140,7 +144,7 @@ namespace AllIn.Harness.Sim
                     if (amt > 0) loop.TransferBankToDomestic(amt);
                 }
 
-                WorkOrRest(loop);
+                Idle(loop);
             }
 
             void RecordLiquidation(SaveData d, int lev, int liqBefore, int tailBefore)
@@ -160,6 +164,7 @@ namespace AllIn.Harness.Sim
 
         public sealed class Outcome
         {
+            public long CoinRealized;
             public long Final;
             public int Liquidations;
             public bool Bankrupt;
@@ -188,8 +193,8 @@ namespace AllIn.Harness.Sim
         /// <summary>Report-only control: turns hunger off so the old food rule can be compared (BankruptcyStudy).</summary>
         public static bool StarveOff;
 
-        /// <summary>Sim-only override of the coin luck chance (LuckSim, DESIGN.md E4). 0 = the rule default, byte-identical to before.</summary>
-        public static double LuckQCoin;
+        /// <summary>Sim override of the coin luck chance; defaults to the rule (Rules.LuckQCoin). LuckSim sweeps it, MentalSim etc. see the rule value.</summary>
+        public static double LuckQCoin = Rules.LuckQCoin;
 
         public static Outcome Play(IPlayer player, long seed)
         {
@@ -210,6 +215,7 @@ namespace AllIn.Harness.Sim
             }
             var s = loop.Data.stats;
             o.Final = loop.TotalAssets;
+            o.CoinRealized = s.coinRealized;
             o.Liquidations = s.liquidations;
             o.Bankrupt = o.Final < Rules.BankruptBelow;
             o.LottoRanks = (int[])s.lottoRanks.Clone();
@@ -295,6 +301,8 @@ namespace AllIn.Harness.Sim
             o.VoyageLiquidations = d.stats.voyageLiquidations;
             return o;
         }
+
+        internal static IPlayer MakeChain(Direction dir, bool noWork) => new LiquidationChain { Dir = dir, NoWork = noWork };
 
         internal static IPlayer Make(string name) => name switch
         {
