@@ -125,8 +125,8 @@ namespace AllIn.Core
 
         // E (v0.5) Part B numbers live in Core/Style.cs (Wardrobe, Cars) so a shop is one file.
 
-        // E (v0.5) — "무조건 승리" (luck). q fixed by the user: coin 2% per watch scene, hold'em 3% per called all-in (DESIGN.md E1).
-        public const double LuckQCoin = 0.02;         // per watch scene (user decision 2026-09-30, DESIGN.md E1)
+        // E (v0.5) — "무조건 승리" (luck). q fixed by the user: coin 1% per watch scene, hold'em 3% per called all-in (DESIGN.md E1).
+        public const double LuckQCoin = 0.01;         // per watch scene (user decision 2026-10-01, DESIGN.md E1)
         public const double LuckRoeTarget = 1.0;      // E3: ROE +100% of (margin + added margin), exit fee deducted
     }
 }

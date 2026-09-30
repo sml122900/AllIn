@@ -52,10 +52,10 @@ namespace AllIn.Holdem.Tests
         }
 
         [Test]
-        public void RuleDefaults_AreTheUsersChoice_ThreePercentHoldem_TwoPercentCoin()
+        public void RuleDefaults_AreTheUsersChoice_ThreePercentHoldem_OnePercentCoin()
         {
             Assert.AreEqual(0.03, HoldemRules.LuckQHoldem);
-            Assert.AreEqual(0.02, Rules.LuckQCoin);
+            Assert.AreEqual(0.01, Rules.LuckQCoin);
         }
 
         [Test]
