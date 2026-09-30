@@ -14,6 +14,9 @@ namespace AllIn.Core
         /// 30-day run into a 200-day one, so they turn this off to keep the original definition. Not saved; the game leaves it on.</summary>
         public bool BankruptcyEnabled { get; set; } = true;
 
+        /// <summary>Days of holding on before the ship is forced. Defaults to Rules.BankruptForcedAfterDays; only the sim (G) changes it. Not saved.</summary>
+        public int ForcedAfterDays { get; set; } = Rules.BankruptForcedAfterDays;
+
         public int Age => AgeAtDay(Data.day);
 
         public static int AgeAtDay(int day) => Rules.StartAge + (day - 1) / Rules.DaysPerYear;
@@ -28,7 +31,7 @@ namespace AllIn.Core
 
         /// <summary>D3: still bankrupt on the 14th day after the state began -> no choice, the ship is forced.</summary>
         public bool ForcedVoyageDue => Data.bankruptSinceDay > 0 && !Data.atSea &&
-                                       Data.day - Data.bankruptSinceDay >= Rules.BankruptForcedAfterDays;
+                                       Data.day - Data.bankruptSinceDay >= ForcedAfterDays;
 
         // ---- new dawn: rent, illness, bankruptcy (never while atSea — the voyage loop doesn't call this) ----
 
